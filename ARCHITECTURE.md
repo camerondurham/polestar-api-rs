@@ -486,7 +486,7 @@ mod tests {
 ```rust
 #[tokio::test]
 async fn test_get_telemetry() {
-    let client = PolestarClient::new(env::var("POLESTAR_TOKEN").unwrap()).unwrap();
+    let client = PolestarClient::new(env::var("POLESTAR_USERNAME").unwrap()).unwrap();
     let result = client.get_telemetry("LPSED3KA1NL059445").await;
     assert!(result.is_ok());
 }

@@ -42,8 +42,8 @@ use polestar_api_rs::PolestarClient;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create a client with your authentication token
-    let client = PolestarClient::new("YOUR_POLESTAR_TOKEN")?;
+    // Create a client with your Polestar account credentials
+    let client = PolestarClient::new("your_email@example.com", "your_password")?;
 
     // Fetch vehicle telemetry
     let telemetry = client.get_telemetry("YOUR_VIN").await?;
@@ -57,15 +57,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Authentication
 
-Authentication requires a valid Polestar API token obtained through a web-based login flow. The token is acquired by authenticating with your Polestar account username and password, which this library proxies to the Polestar authentication service.
+The client authenticates using your Polestar account credentials (username and password). The library handles the web-based login flow to obtain access tokens from the Polestar authentication service.
 
-> **Note**: This library does not directly handle username/password authentication. You'll need to obtain a bearer token through the Polestar web login flow. See the [pypolestar reference implementation](https://github.com/pypolestar/polestar_api) for examples of the authentication flow and token extraction process.
+> **Note**: Authentication implementation is currently in progress. The client accepts username and password credentials which will be used to authenticate with the Polestar API. See the [pypolestar reference implementation](https://github.com/pypolestar/polestar_api) for examples of the authentication flow.
 
-**Security**: Never commit tokens or credentials to version control. Use environment variables:
+**Security**: Never commit credentials to version control. Use environment variables:
 
 ```bash
-export POLESTAR_TOKEN="your_token_here"
-export POLESTAR_VIN="your_vin_here"
+export POLESTAR_USERNAME="your_email@example.com"
+export POLESTAR_PASSWORD="your_password"
+export POLESTAR_VIN="your_vin"
 ```
 
 ## Examples
@@ -73,6 +74,7 @@ export POLESTAR_VIN="your_vin_here"
 ### Get Battery Status
 
 ```rust
+let client = PolestarClient::new("user@example.com", "password")?;
 let telemetry = client.get_telemetry("VIN").await?;
 
 if let Some(charge) = telemetry.battery.charge_level_percentage {
@@ -87,20 +89,11 @@ if let Some(status) = telemetry.battery.charge_status {
 ### Get Vehicle Information
 
 ```rust
+let client = PolestarClient::new("user@example.com", "password")?;
 let vehicle = client.get_vehicle("VIN").await?;
 
 println!("Model: {}", vehicle.content.model.name.unwrap_or_default());
 println!("Market: {}", vehicle.market.unwrap_or_default());
-```
-
-### Get Specifications
-
-```rust
-let specs = client.get_specifications("VIN").await?;
-
-for group in specs.groups {
-    println!("Spec Group: {}", group.label);
-}
 ```
 
 See the [`examples/`](examples/) directory for more complete examples.
@@ -121,7 +114,8 @@ cargo test
 
 Run integration tests (requires credentials):
 ```bash
-export POLESTAR_TOKEN="your_token"
+export POLESTAR_USERNAME="your_email@example.com"
+export POLESTAR_PASSWORD="your_password"
 export POLESTAR_VIN="your_vin"
 cargo test --test integration_tests
 ```
@@ -129,7 +123,8 @@ cargo test --test integration_tests
 Use the test harness CLI:
 ```bash
 cargo run --example test_harness --features cli -- \
-  --token "$POLESTAR_TOKEN" \
+  --username "$POLESTAR_USERNAME" \
+  --password "$POLESTAR_PASSWORD" \
   --vin "$POLESTAR_VIN" \
   --endpoint all
 ```

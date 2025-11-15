@@ -132,7 +132,7 @@ Based on the documented Polestar API, we'll support three main operations:
 - [ ] Create `PolestarClientBuilder` for configuration:
   ```rust
   let client = PolestarClient::builder()
-      .token("YOUR_TOKEN")
+      .token("USERNAME_PASSWORD")
       .timeout(Duration::from_secs(30))
       .enable_cache()
       .build()?;

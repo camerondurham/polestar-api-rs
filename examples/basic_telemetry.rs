@@ -2,7 +2,8 @@
 //!
 //! Usage:
 //! ```bash
-//! export POLESTAR_TOKEN="your_token"
+//! export POLESTAR_USERNAME="your_email@example.com"
+//! export POLESTAR_PASSWORD="your_password"
 //! export POLESTAR_VIN="your_vin"
 //! cargo run --example basic_telemetry
 //! ```
@@ -13,11 +14,12 @@ use std::env;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Get credentials from environment
-    let token = env::var("POLESTAR_TOKEN").expect("POLESTAR_TOKEN must be set");
+    let username = env::var("POLESTAR_USERNAME").expect("POLESTAR_USERNAME must be set");
+    let password = env::var("POLESTAR_PASSWORD").expect("POLESTAR_PASSWORD must be set");
     let vin = env::var("POLESTAR_VIN").expect("POLESTAR_VIN must be set");
 
     // Create client
-    let client = PolestarClient::new(token)?;
+    let client = PolestarClient::new(username, password)?;
 
     println!("Fetching telemetry for VIN: {}", vin);
 

@@ -3,7 +3,8 @@
 //! Usage:
 //! ```bash
 //! cargo run --example test_harness --features cli -- \
-//!   --token "YOUR_TOKEN" \
+//!   --username "your_email@example.com" \
+//!   --password "your_password" \
 //!   --vin "YOUR_VIN" \
 //!   --endpoint telemetry
 //! ```
@@ -20,9 +21,13 @@ use std::time::Instant;
 #[command(name = "polestar-test-harness")]
 #[command(about = "Test harness for Polestar API")]
 struct Args {
-    /// Polestar API token
-    #[arg(short, long, env = "POLESTAR_TOKEN")]
-    token: String,
+    /// Polestar account username (email)
+    #[arg(short, long, env = "POLESTAR_USERNAME")]
+    username: String,
+
+    /// Polestar account password
+    #[arg(short, long, env = "POLESTAR_PASSWORD")]
+    password: String,
 
     /// Vehicle VIN
     #[arg(short, long, env = "POLESTAR_VIN")]
@@ -55,7 +60,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
     let args = Args::parse();
 
-    let client = PolestarClient::new(args.token)?;
+    let client = PolestarClient::new(args.username, args.password)?;
 
     match args.endpoint {
         Endpoint::Telemetry => {

@@ -318,8 +318,9 @@ use std::env;
 
 // Helper to skip tests if credentials not available
 fn get_test_client() -> Option<PolestarClient> {
-    let token = env::var("POLESTAR_TOKEN").ok()?;
-    PolestarClient::new(token).ok()
+    let username = env::var("POLESTAR_USERNAME").ok()?;
+    let password = env::var("POLESTAR_PASSWORD").ok()?;
+    PolestarClient::new(username, password).ok()
 }
 
 fn get_test_vin() -> String {
@@ -330,7 +331,7 @@ fn get_test_vin() -> String {
 #[tokio::test]
 async fn test_real_telemetry_api() {
     let Some(client) = get_test_client() else {
-        eprintln!("Skipping test: POLESTAR_TOKEN not set");
+        eprintln!("Skipping test: POLESTAR_USERNAME not set");
         return;
     };
 
@@ -353,7 +354,7 @@ async fn test_real_telemetry_api() {
 #[tokio::test]
 async fn test_real_vehicle_api() {
     let Some(client) = get_test_client() else {
-        eprintln!("Skipping test: POLESTAR_TOKEN not set");
+        eprintln!("Skipping test: POLESTAR_USERNAME not set");
         return;
     };
 
@@ -375,7 +376,7 @@ async fn test_real_vehicle_api() {
 #[tokio::test]
 async fn test_real_specifications_api() {
     let Some(client) = get_test_client() else {
-        eprintln!("Skipping test: POLESTAR_TOKEN not set");
+        eprintln!("Skipping test: POLESTAR_USERNAME not set");
         return;
     };
 
@@ -396,7 +397,7 @@ async fn test_real_specifications_api() {
 #[tokio::test]
 async fn test_invalid_vin() {
     let Some(client) = get_test_client() else {
-        eprintln!("Skipping test: POLESTAR_TOKEN not set");
+        eprintln!("Skipping test: POLESTAR_USERNAME not set");
         return;
     };
 
@@ -407,7 +408,7 @@ async fn test_invalid_vin() {
 #[tokio::test]
 async fn test_concurrent_requests() {
     let Some(client) = get_test_client() else {
-        eprintln!("Skipping test: POLESTAR_TOKEN not set");
+        eprintln!("Skipping test: POLESTAR_USERNAME not set");
         return;
     };
 
@@ -444,9 +445,13 @@ use std::time::Instant;
 #[command(name = "polestar-test-harness")]
 #[command(about = "Test harness for Polestar API")]
 struct Args {
-    /// Polestar API token
-    #[arg(short, long, env = "POLESTAR_TOKEN")]
-    token: String,
+    /// Polestar account username (email)
+    #[arg(short, long, env = "POLESTAR_USERNAME")]
+    username: String,
+
+    /// Polestar account password
+    #[arg(short, long, env = "POLESTAR_PASSWORD")]
+    password: String,
 
     /// Vehicle VIN
     #[arg(short, long, env = "POLESTAR_VIN")]
@@ -478,7 +483,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
     let args = Args::parse();
 
-    let client = PolestarClient::new(args.token)?;
+    let client = PolestarClient::new(args.username, args.password)?;
 
     match args.endpoint {
         Endpoint::Telemetry => {
@@ -594,19 +599,19 @@ async fn test_specifications(
 ```bash
 # Test telemetry endpoint
 cargo run --example test_harness -- \
-  --token "YOUR_TOKEN" \
+  --token "USERNAME_PASSWORD" \
   --vin "LPSED3KA1NL059445" \
   --endpoint telemetry
 
 # Test all endpoints
 cargo run --example test_harness -- \
-  --token "YOUR_TOKEN" \
+  --token "USERNAME_PASSWORD" \
   --vin "LPSED3KA1NL059445" \
   --endpoint all \
   --pretty
 
 # Use environment variables
-export POLESTAR_TOKEN="YOUR_TOKEN"
+export POLESTAR_USERNAME="USERNAME_PASSWORD"
 export POLESTAR_VIN="LPSED3KA1NL059445"
 cargo run --example test_harness -- --endpoint all
 
@@ -683,7 +688,7 @@ jobs:
 
       - name: Run integration tests (if credentials available)
         env:
-          POLESTAR_TOKEN: ${{ secrets.POLESTAR_TOKEN }}
+          POLESTAR_USERNAME: ${{ secrets.POLESTAR_USERNAME }}
           POLESTAR_VIN: ${{ secrets.POLESTAR_VIN }}
         run: cargo test --test integration_tests
         continue-on-error: true
@@ -724,7 +729,7 @@ cargo test --lib
 ### 7.3 Integration Tests
 ```bash
 # Requires credentials
-export POLESTAR_TOKEN="your_token"
+export POLESTAR_USERNAME="your_credentials"
 export POLESTAR_VIN="your_vin"
 cargo test --test integration_tests
 ```

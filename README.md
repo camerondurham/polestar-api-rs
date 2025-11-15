@@ -5,7 +5,7 @@ A lightweight, type-safe Rust wrapper for the Polestar vehicle GraphQL API.
 [![CI](https://github.com/camerondurham/polestar-api-rs/workflows/Tests/badge.svg)](https://github.com/camerondurham/polestar-api-rs/actions)
 [![Crates.io](https://img.shields.io/crates/v/polestar-api-rs.svg)](https://crates.io/crates/polestar-api-rs)
 [![Documentation](https://docs.rs/polestar-api-rs/badge.svg)](https://docs.rs/polestar-api-rs)
-[![License](https://img.shields.io/crates/l/polestar-api-rs.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)]()
 
 ## Features
 
@@ -55,7 +55,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Authentication
 
-You'll need a valid Polestar API token. See [Authentication Guide](docs/AUTHENTICATION.md) for details on obtaining a token.
+You'll need a valid Polestar API token. Token acquisition is handled through the Polestar web interface or mobile app authentication flow.
+
+> **Note**: Detailed authentication documentation is planned for a future release. For now, you'll need to obtain a token through existing Polestar authentication methods. See the [pypolestar reference implementation](https://github.com/pypolestar/polestar_api) for token extraction examples.
 
 **Security**: Never commit tokens to version control. Use environment variables:
 
@@ -144,14 +146,14 @@ See [PLAN.md](PLAN.md) for the complete roadmap.
 
 ## Contributing
 
-Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Contributions are welcome! Please open an issue or pull request on GitHub. Contribution guidelines will be added in a future release.
 
 ## License
 
-Licensed under either of:
+Dual-licensed under either of:
 
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
-- MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+- Apache License, Version 2.0 ([apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0))
+- MIT license ([opensource.org/licenses/MIT](http://opensource.org/licenses/MIT))
 
 at your option.
 

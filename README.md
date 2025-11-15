@@ -2,6 +2,8 @@
 
 A lightweight, type-safe Rust wrapper for the Polestar vehicle GraphQL API.
 
+> **Disclaimer**: This library is not affiliated with nor supported by Polestar.
+
 [![CI](https://github.com/camerondurham/polestar-api-rs/workflows/Tests/badge.svg)](https://github.com/camerondurham/polestar-api-rs/actions)
 [![Crates.io](https://img.shields.io/crates/v/polestar-api-rs.svg)](https://crates.io/crates/polestar-api-rs)
 [![Documentation](https://docs.rs/polestar-api-rs/badge.svg)](https://docs.rs/polestar-api-rs)
@@ -55,11 +57,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Authentication
 
-You'll need a valid Polestar API token. Token acquisition is handled through the Polestar web interface or mobile app authentication flow.
+Authentication requires a valid Polestar API token obtained through a web-based login flow. The token is acquired by authenticating with your Polestar account username and password, which this library proxies to the Polestar authentication service.
 
-> **Note**: Detailed authentication documentation is planned for a future release. For now, you'll need to obtain a token through existing Polestar authentication methods. See the [pypolestar reference implementation](https://github.com/pypolestar/polestar_api) for token extraction examples.
+> **Note**: This library does not directly handle username/password authentication. You'll need to obtain a bearer token through the Polestar web login flow. See the [pypolestar reference implementation](https://github.com/pypolestar/polestar_api) for examples of the authentication flow and token extraction process.
 
-**Security**: Never commit tokens to version control. Use environment variables:
+**Security**: Never commit tokens or credentials to version control. Use environment variables:
 
 ```bash
 export POLESTAR_TOKEN="your_token_here"

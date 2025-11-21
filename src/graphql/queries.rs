@@ -29,8 +29,8 @@ query CarTelematicsV2($vin: String!) {
 ///
 /// Returns vehicle specifications, features, images, and configuration.
 pub const GET_CONSUMER_CARS_V2: &str = r#"
-query GetConsumerCarsV2($vin: String!) {
-    getConsumerCarsV2(vin: $vin) {
+query GetConsumerCarsV2 {
+    getConsumerCarsV2 {
         vin
         internalVehicleIdentifier
         registrationNo
@@ -40,22 +40,9 @@ query GetConsumerCarsV2($vin: String!) {
                 code
                 name
             }
-            images {
-                studio {
-                    url
-                    angles
-                }
-            }
             specification {
-                motor {
-                    power
-                    torque
-                    acceleration
-                }
-                battery {
-                    capacity
-                    range
-                }
+                battery
+                torque
             }
         }
     }

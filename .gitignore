@@ -1,5 +1,7 @@
-# Rust build artifacts
+# Rust
 /target/
+**/*.rs.bk
+*.pdb
 Cargo.lock
 
 # IDE
@@ -9,26 +11,19 @@ Cargo.lock
 *.swo
 *~
 
-# macOS
+# OS
 .DS_Store
+Thumbs.db
 
-# Environment files
+# Environment and secrets
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+*.key
+*.pem
+secrets/
+credentials/
 
-# Secrets
-*.token
-credentials.json
-
-# Test coverage
-coverage/
+# Test artifacts
 *.profraw
-tarpaulin-report.html
-
-# Documentation build
-/doc/
-
-# Backup files
-*.bak
-*.orig
+*.profdata

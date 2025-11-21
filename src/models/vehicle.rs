@@ -70,7 +70,10 @@ pub struct VehicleSpecifications {
     pub motor: Option<MotorSpec>,
 
     /// Battery specifications.
-    pub battery: Option<BatterySpec>,
+    pub battery: Option<String>,
+
+    /// Torque specification.
+    pub torque: Option<String>,
 }
 
 /// Motor specifications.

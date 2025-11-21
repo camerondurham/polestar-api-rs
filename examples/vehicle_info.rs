@@ -59,13 +59,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
 
                 if let Some(battery) = &spec.battery {
-                    println!("\n=== Battery Specifications ===");
-                    if let Some(capacity) = &battery.capacity {
-                        println!("  Capacity: {}", capacity);
-                    }
-                    if let Some(range) = &battery.range {
-                        println!("  Range: {}", range);
-                    }
+                    println!("\n=== Battery ===");
+                    println!("  {}", battery);
+                }
+
+                if let Some(torque) = &spec.torque {
+                    println!("\n=== Torque ===");
+                    println!("  {}", torque);
                 }
             }
         }

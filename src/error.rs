@@ -9,6 +9,18 @@ pub enum PolestarError {
     #[error("Authentication failed: {0}")]
     AuthError(String),
 
+    /// Invalid credentials provided (ERR001).
+    #[error("Invalid username or password")]
+    InvalidCredentials,
+
+    /// Token has expired and refresh failed.
+    #[error("Token expired")]
+    TokenExpired,
+
+    /// OIDC configuration unavailable.
+    #[error("OIDC configuration unavailable: {0}")]
+    OidcConfigError(String),
+
     /// API request failed with an error message.
     #[error("API request failed: {0}")]
     ApiError(String),

@@ -1,8 +1,10 @@
 //! HTTP client for interacting with the Polestar API.
 
+use crate::auth::AuthState;
 use crate::error::{PolestarError, Result};
 use crate::graphql;
 use crate::models::{telemetry::Telemetry, vehicle::Vehicle};
+use std::sync::Arc;
 
 /// Main client for interacting with the Polestar API.
 ///
@@ -21,8 +23,7 @@ use crate::models::{telemetry::Telemetry, vehicle::Vehicle};
 #[derive(Clone)]
 pub struct PolestarClient {
     http_client: reqwest::Client,
-    username: String,
-    password: String,
+    auth_state: Arc<AuthState>,
     pc_api_base: String,
     cms_api_base: String,
 }
@@ -46,13 +47,15 @@ impl PolestarClient {
     /// ```
     pub fn new(username: impl Into<String>, password: impl Into<String>) -> Result<Self> {
         let http_client = reqwest::Client::builder()
+            .cookie_store(true)
             .timeout(std::time::Duration::from_secs(30))
             .build()?;
 
+        let auth_state = Arc::new(AuthState::new(username.into(), password.into()));
+
         Ok(Self {
             http_client,
-            username: username.into(),
-            password: password.into(),
+            auth_state,
             pc_api_base: "https://pc-api.polestar.com/eu-north-1/mystar-v2".to_string(),
             cms_api_base: "https://cms-api.polestar.com/".to_string(),
         })
@@ -91,39 +94,56 @@ impl PolestarClient {
     ///
     /// * `vin` - Vehicle Identification Number
     pub async fn get_vehicle(&self, vin: &str) -> Result<Vehicle> {
-        let variables = serde_json::json!({
-            "vin": vin
+        let variables = serde_json::json!({});
+
+        // Get token
+        let token = self.authenticate().await?;
+
+        let body = serde_json::json!({
+            "query": graphql::queries::GET_CONSUMER_CARS_V2,
+            "variables": variables
         });
 
-        self.post_graphql(
-            &self.pc_api_base,
-            graphql::queries::GET_CONSUMER_CARS_V2,
-            variables,
-        )
-        .await
+        let response = self
+            .http_client
+            .post(&self.pc_api_base)
+            .header("authorization", format!("Bearer {}", token))
+            .header("content-type", "application/json")
+            .header("origin", "https://www.polestar.com")
+            .json(&body)
+            .send()
+            .await?;
+
+        let json: serde_json::Value = response.json().await?;
+
+        // Check for GraphQL errors
+        if let Some(errors) = json.get("errors") {
+            if let Some(message) = errors.get(0).and_then(|e| e.get("message")) {
+                return Err(PolestarError::GraphQLError(message.to_string()));
+            }
+        }
+
+        // Extract data.getConsumerCarsV2 field
+        let vehicles_data = json
+            .get("data")
+            .and_then(|d| d.get("getConsumerCarsV2"))
+            .ok_or_else(|| PolestarError::ApiError("No getConsumerCarsV2 field in response".to_string()))?;
+
+        let vehicles: Vec<Vehicle> = serde_json::from_value(vehicles_data.clone())?;
+
+        // Find the vehicle with matching VIN
+        vehicles
+            .into_iter()
+            .find(|v| v.vin == vin)
+            .ok_or_else(|| PolestarError::InvalidVin(format!("VIN {} not found", vin)))
     }
 
     /// Authenticates with Polestar and returns an access token.
     ///
     /// This method implements the web-based login flow using the stored credentials.
     /// The token is cached and reused for subsequent requests.
-    ///
-    /// # Note
-    ///
-    /// This is a placeholder implementation. The actual authentication flow
-    /// will be implemented in a future version.
     async fn authenticate(&self) -> Result<String> {
-        // TODO: Implement actual authentication flow
-        // This should:
-        // 1. Perform login with username/password
-        // 2. Handle OAuth/token exchange
-        // 3. Return bearer token
-        // 4. Cache token with expiration
-
-        // For now, return placeholder
-        Err(PolestarError::AuthError(
-            "Authentication not yet implemented. Please use pypolestar to obtain a token manually.".to_string()
-        ))
+        self.auth_state.get_valid_token(&self.http_client).await
     }
 
     /// Internal method to execute GraphQL queries.
@@ -136,9 +156,8 @@ impl PolestarClient {
     where
         T: serde::de::DeserializeOwned,
     {
-        // TODO: Get token via authenticate() method
-        // For now, use username field as token (temporary placeholder)
-        let token = &self.username;
+        // Get valid token (will authenticate if needed)
+        let token = self.authenticate().await?;
 
         let body = serde_json::json!({
             "query": query,

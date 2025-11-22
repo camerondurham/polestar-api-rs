@@ -12,7 +12,7 @@
 #[cfg(feature = "cli")]
 use clap::Parser;
 #[cfg(feature = "cli")]
-use polestar_api_rs::PolestarClient;
+use polestar_api::PolestarClient;
 #[cfg(feature = "cli")]
 use std::time::Instant;
 

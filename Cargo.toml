@@ -1,14 +1,21 @@
 [package]
-name = "polestar-api-rs"
+name = "polestar-api"
 version = "0.1.0"
 edition = "2021"
-authors = ["Cameron Durham <cameron@example.com>"]
+authors = ["Cameron Durham <u64.cam@gmail.com>"]
 license = "MIT OR Apache-2.0"
 description = "A lightweight Rust wrapper for the Polestar vehicle GraphQL API"
 repository = "https://github.com/camerondurham/polestar-api-rs"
+documentation = "https://docs.rs/polestar-api"
+homepage = "https://github.com/camerondurham/polestar-api-rs"
 keywords = ["polestar", "api", "vehicle", "telemetry", "graphql"]
 categories = ["api-bindings"]
 readme = "README.md"
+exclude = [
+    ".env",
+    ".env.*",
+    "docs/",
+]
 
 [dependencies]
 # Async runtime

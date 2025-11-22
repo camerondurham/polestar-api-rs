@@ -1,11 +1,11 @@
-//! # polestar-api-rs
+//! # polestar-api
 //!
 //! A lightweight, type-safe Rust wrapper for the Polestar vehicle GraphQL API.
 //!
 //! ## Quick Start
 //!
 //! ```no_run
-//! use polestar_api_rs::PolestarClient;
+//! use polestar_api::PolestarClient;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {

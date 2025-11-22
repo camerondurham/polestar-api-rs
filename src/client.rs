@@ -11,7 +11,7 @@ use std::sync::Arc;
 /// # Example
 ///
 /// ```no_run
-/// use polestar_api_rs::PolestarClient;
+/// use polestar_api::PolestarClient;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -42,7 +42,7 @@ impl PolestarClient {
     /// # Example
     ///
     /// ```no_run
-    /// # use polestar_api_rs::PolestarClient;
+    /// # use polestar_api::PolestarClient;
     /// let client = PolestarClient::new("user@example.com", "password").unwrap();
     /// ```
     pub fn new(username: impl Into<String>, password: impl Into<String>) -> Result<Self> {
@@ -70,7 +70,7 @@ impl PolestarClient {
     /// # Example
     ///
     /// ```no_run
-    /// # use polestar_api_rs::PolestarClient;
+    /// # use polestar_api::PolestarClient;
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # let client = PolestarClient::new("user@example.com", "password")?;

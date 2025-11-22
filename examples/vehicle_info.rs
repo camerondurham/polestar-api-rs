@@ -8,7 +8,7 @@
 //! cargo run --example vehicle_info
 //! ```
 
-use polestar_api_rs::PolestarClient;
+use polestar_api::PolestarClient;
 use std::env;
 
 #[tokio::main]

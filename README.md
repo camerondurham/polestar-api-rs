@@ -1,12 +1,12 @@
-# polestar-api-rs
+# polestar_api
 
 A lightweight, type-safe Rust wrapper for the Polestar vehicle GraphQL API.
 
 > **Disclaimer**: This library is not affiliated with nor supported by Polestar.
 
-[![CI](https://github.com/camerondurham/polestar-api-rs/workflows/Tests/badge.svg)](https://github.com/camerondurham/polestar-api-rs/actions)
-[![Crates.io](https://img.shields.io/crates/v/polestar-api-rs.svg)](https://crates.io/crates/polestar-api-rs)
-[![Documentation](https://docs.rs/polestar-api-rs/badge.svg)](https://docs.rs/polestar-api-rs)
+[![CI](https://github.com/camerondurham/polestar_api/workflows/Tests/badge.svg)](https://github.com/camerondurham/polestar_api/actions)
+[![Crates.io](https://img.shields.io/crates/v/polestar_api.svg)](https://crates.io/crates/polestar_api)
+[![Documentation](https://docs.rs/polestar_api/badge.svg)](https://docs.rs/polestar_api)
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)]()
 
 ## Features
@@ -19,9 +19,9 @@ A lightweight, type-safe Rust wrapper for the Polestar vehicle GraphQL API.
 
 ## Supported Endpoints
 
-- ✅ **Vehicle Telemetry** - Battery status, charging info, odometer
+- [WIP] **Vehicle Telemetry** - Battery status, charging info, odometer
 - ✅ **Consumer Vehicle Data** - Vehicle specifications, features, images
-- ✅ **Specifications** - Detailed vehicle specification metadata
+- [WIP] **Specifications** - Detailed vehicle specification metadata
 
 ## Quick Start
 
@@ -31,7 +31,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-polestar-api-rs = "0.1"
+polestar_api = "0.1"
 tokio = { version = "1", features = ["full"] }
 ```
 

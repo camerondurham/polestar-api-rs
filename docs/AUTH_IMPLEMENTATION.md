@@ -16,7 +16,7 @@ Implement Polestar OAuth2/OIDC authentication flow based on pypolestar reference
 ## Constants (from pypolestar)
 ```
 OIDC_PROVIDER: https://polestarid.eu.polestar.com
-CLIENT_ID: l3oopkc_10
+CLIENT_ID:
 REDIRECT_URI: https://www.polestar.com/sign-in-callback
 SCOPE: openid profile email customer:attributes
 TOKEN_REFRESH_WINDOW: 300s

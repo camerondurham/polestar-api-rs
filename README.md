@@ -1,21 +1,13 @@
-# polestar_api
+# polestar-api
 
 A lightweight, type-safe Rust wrapper for the Polestar vehicle GraphQL API.
 
 > **Disclaimer**: This library is not affiliated with nor supported by Polestar.
 
-[![CI](https://github.com/camerondurham/polestar_api/workflows/Tests/badge.svg)](https://github.com/camerondurham/polestar_api/actions)
-[![Crates.io](https://img.shields.io/crates/v/polestar_api.svg)](https://crates.io/crates/polestar_api)
-[![Documentation](https://docs.rs/polestar_api/badge.svg)](https://docs.rs/polestar_api)
+[![CI](https://github.com/camerondurham/polestar-api/workflows/Tests/badge.svg)](https://github.com/camerondurham/polestar-api/actions)
+[![Crates.io](https://img.shields.io/crates/v/polestar-api.svg)](https://crates.io/crates/polestar-api)
+[![Documentation](https://docs.rs/polestar-api/badge.svg)](https://docs.rs/polestar-api)
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)]()
-
-## Features
-
-- **Type-safe**: Leverages Rust's type system for compile-time guarantees
-- **Async-first**: Built on async/await with Tokio runtime
-- **Comprehensive**: Supports all major Polestar API endpoints
-- **Well-tested**: Extensive unit, mock, and integration tests
-- **Documented**: Full API documentation and examples
 
 ## Supported Endpoints
 
@@ -31,14 +23,14 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-polestar_api = "0.1"
+polestar-api = "0.1"
 tokio = { version = "1", features = ["full"] }
 ```
 
 ### Usage
 
 ```rust
-use polestar_api_rs::PolestarClient;
+use polestar_api::PolestarClient;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -59,7 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 The client authenticates using your Polestar account credentials (username and password). The library handles the web-based login flow to obtain access tokens from the Polestar authentication service.
 
-> **Note**: Authentication implementation is currently in progress. The client accepts username and password credentials which will be used to authenticate with the Polestar API. See the [pypolestar reference implementation](https://github.com/pypolestar/polestar_api) for examples of the authentication flow.
+> **Note**: Authentication implementation is currently in progress. The client accepts username and password credentials which will be used to authenticate with the Polestar API. See the [pypolestar reference implementation](https://github.com/pypolestar/polestar-api) for examples of the authentication flow.
 
 **Security**: Never commit credentials to version control. Use environment variables:
 
@@ -160,7 +152,7 @@ This is an unofficial, community-maintained wrapper for the Polestar API. It is 
 
 ## Acknowledgments
 
-- [pypolestar](https://github.com/pypolestar/polestar_api) - Python reference implementation
+- [pypolestar](https://github.com/pypolestar/polestar-api) - Python reference implementation
 - The Rust community for excellent async tooling
 
 ## References

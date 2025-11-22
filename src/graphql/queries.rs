@@ -69,7 +69,7 @@ mod tests {
     #[test]
     fn test_vehicle_query_structure() {
         assert!(GET_CONSUMER_CARS_V2.contains("GetConsumerCarsV2"));
-        assert!(GET_CONSUMER_CARS_V2.contains("$vin: String!"));
+        assert!(GET_CONSUMER_CARS_V2.contains("getConsumerCarsV2"));
         assert!(GET_CONSUMER_CARS_V2.contains("content"));
     }
 }

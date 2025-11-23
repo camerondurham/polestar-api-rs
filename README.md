@@ -40,8 +40,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Fetch vehicle telemetry
     let telemetry = client.get_telemetry("YOUR_VIN").await?;
 
-    println!("Battery: {:.1}%",
-        telemetry.battery.charge_level_percentage.unwrap_or(0.0));
+    println!("Battery: {}%",
+        telemetry.battery.charge_level_percentage.unwrap_or(0));
 
     Ok(())
 }
@@ -70,12 +70,21 @@ let client = PolestarClient::new("user@example.com", "password")?;
 let telemetry = client.get_telemetry("VIN").await?;
 
 if let Some(charge) = telemetry.battery.charge_level_percentage {
-    println!("Battery: {:.1}%", charge);
+    println!("Battery: {}%", charge);
 }
 
-if let Some(status) = telemetry.battery.charge_status {
+if let Some(status) = &telemetry.battery.charge_status {
     println!("Status: {}", status);
 }
+```
+
+**Example Output:**
+```
+Battery: 69%
+Status: CHARGING_STATUS_IDLE
+Time to Full: 0 minutes
+Estimated Range: 230 km
+Total Distance: 67712.9 km
 ```
 
 ### Get Vehicle Information
@@ -120,6 +129,10 @@ cargo run --example test_harness --features cli -- \
   --vin "$POLESTAR_VIN" \
   --endpoint all
 ```
+
+## Development
+
+The repository includes a git pre-commit hook that automatically strips trailing whitespace from all staged files. The hook is located at `.git/hooks/pre-commit` and runs automatically on each commit.
 
 ## Development Status
 

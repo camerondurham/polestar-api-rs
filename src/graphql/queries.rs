@@ -4,22 +4,40 @@
 ///
 /// Returns battery status, charging information, odometer, and health data.
 pub const CAR_TELEMETRICS_V2: &str = r#"
-query CarTelematicsV2($vin: String!) {
-    getCarTelematicsV2(vin: $vin) {
-        data {
+query CarTelematicsV2($vins: [String!]!) {
+    carTelematicsV2(vins: $vins) {
+        battery {
+            vin
+            timestamp {
+                seconds
+                nanos
+            }
             batteryChargeLevelPercentage
-            batteryChargeStatus
-            chargingPowerWatts
+            chargingStatus
             estimatedChargingTimeToFullMinutes
             estimatedDistanceToEmptyKm
-            odometerMeters
-            averageSpeedKmPerHour
-            serviceWarningStatus
-            internalVehicleIdentifier
-            eventUpdatedTimestamp {
-                iso
-                unix
+            estimatedDistanceToEmptyMiles
+        }
+        health {
+            vin
+            timestamp {
+                seconds
+                nanos
             }
+            daysToService
+            distanceToServiceKm
+            serviceWarning
+            brakeFluidLevelWarning
+            engineCoolantLevelWarning
+            oilLevelWarning
+        }
+        odometer {
+            vin
+            timestamp {
+                seconds
+                nanos
+            }
+            odometerMeters
         }
     }
 }
@@ -62,8 +80,10 @@ mod tests {
     #[test]
     fn test_telemetry_query_structure() {
         assert!(CAR_TELEMETRICS_V2.contains("CarTelematicsV2"));
-        assert!(CAR_TELEMETRICS_V2.contains("$vin: String!"));
+        assert!(CAR_TELEMETRICS_V2.contains("$vins: [String!]!"));
+        assert!(CAR_TELEMETRICS_V2.contains("carTelematicsV2"));
         assert!(CAR_TELEMETRICS_V2.contains("batteryChargeLevelPercentage"));
+        assert!(CAR_TELEMETRICS_V2.contains("chargingStatus"));
     }
 
     #[test]

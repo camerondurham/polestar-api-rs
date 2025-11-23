@@ -47,43 +47,47 @@ mod tests {
     #[test]
     fn test_battery_full_data() {
         let json = r#"{
-            "batteryChargeLevelPercentage": 85.5,
-            "batteryChargeStatus": "charging",
-            "chargingPowerWatts": 7400,
+            "vin": "TEST123",
+            "timestamp": {"seconds": "1234567890", "nanos": 0},
+            "batteryChargeLevelPercentage": 85,
+            "chargingStatus": "CHARGING_STATUS_CHARGING",
             "estimatedChargingTimeToFullMinutes": 45,
-            "estimatedDistanceToEmptyKm": 320.5
+            "estimatedDistanceToEmptyKm": 320,
+            "estimatedDistanceToEmptyMiles": 200
         }"#;
 
         let battery: Battery = serde_json::from_str(json).unwrap();
-        assert_eq!(battery.charge_level_percentage, Some(85.5));
-        assert_eq!(battery.charge_status, Some("charging".to_string()));
-        assert_eq!(battery.charging_power_watts, Some(7400.0));
+        assert_eq!(battery.charge_level_percentage, Some(85));
+        assert_eq!(battery.charge_status, Some("CHARGING_STATUS_CHARGING".to_string()));
         assert_eq!(battery.estimated_charging_time_minutes, Some(45));
-        assert_eq!(battery.estimated_distance_to_empty_km, Some(320.5));
+        assert_eq!(battery.estimated_distance_to_empty_km, Some(320));
     }
 
     #[test]
     fn test_battery_partial_data() {
         let json = r#"{
-            "batteryChargeLevelPercentage": 50.0
+            "vin": "TEST123",
+            "timestamp": {"seconds": "1234567890", "nanos": 0},
+            "batteryChargeLevelPercentage": 50
         }"#;
 
         let battery: Battery = serde_json::from_str(json).unwrap();
-        assert_eq!(battery.charge_level_percentage, Some(50.0));
+        assert_eq!(battery.charge_level_percentage, Some(50));
         assert_eq!(battery.charge_status, None);
-        assert_eq!(battery.charging_power_watts, None);
     }
 
     #[test]
     fn test_battery_null_fields() {
         let json = r#"{
+            "vin": "TEST123",
+            "timestamp": {"seconds": "1234567890", "nanos": 0},
             "batteryChargeLevelPercentage": null,
-            "batteryChargeStatus": "idle"
+            "chargingStatus": "CHARGING_STATUS_IDLE"
         }"#;
 
         let battery: Battery = serde_json::from_str(json).unwrap();
         assert_eq!(battery.charge_level_percentage, None);
-        assert_eq!(battery.charge_status, Some("idle".to_string()));
+        assert_eq!(battery.charge_status, Some("CHARGING_STATUS_IDLE".to_string()));
     }
 
     #[test]

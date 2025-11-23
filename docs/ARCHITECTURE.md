@@ -150,14 +150,18 @@ Manages GraphQL query construction and execution.
 ```rust
 pub mod queries {
     pub const CAR_TELEMETRICS_V2: &str = r#"
-        query CarTelematicsV2($vin: String!) {
-            getCarTelematicsV2(vin: $vin) {
-                data {
+        query CarTelematicsV2($vins: [String!]!) {
+            carTelematicsV2(vins: $vins) {
+                battery {
+                    vin
+                    timestamp { seconds nanos }
                     batteryChargeLevelPercentage
-                    batteryChargeStatus
-                    chargingPowerWatts
-                    # ... more fields
+                    chargingStatus
+                    estimatedChargingTimeToFullMinutes
+                    estimatedDistanceToEmptyKm
                 }
+                health { ... }
+                odometer { ... }
             }
         }
     "#;
@@ -191,33 +195,43 @@ Type-safe representations of API responses.
 
 ```rust
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelemetryResponse {
+    pub battery: Vec<Battery>,
+    pub health: Vec<Health>,
+    pub odometer: Vec<Option<Odometer>>,
+}
+
+#[derive(Debug, Clone)]
 pub struct Telemetry {
     pub battery: Battery,
-    pub odometer: Odometer,
     pub health: Health,
+    pub odometer: Option<Odometer>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Battery {
+    pub vin: String,
+    pub timestamp: Timestamp,
+
     #[serde(rename = "batteryChargeLevelPercentage")]
-    pub charge_level_percentage: Option<f64>,
+    pub charge_level_percentage: Option<i64>,
 
-    #[serde(rename = "batteryChargeStatus")]
+    #[serde(rename = "chargingStatus")]
     pub charge_status: Option<String>,
-
-    #[serde(rename = "chargingPowerWatts")]
-    pub charging_power_watts: Option<f64>,
 
     #[serde(rename = "estimatedChargingTimeToFullMinutes")]
     pub estimated_charging_time_minutes: Option<i64>,
 
     #[serde(rename = "estimatedDistanceToEmptyKm")]
-    pub estimated_distance_to_empty_km: Option<f64>,
+    pub estimated_distance_to_empty_km: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Odometer {
-    #[serde(rename = "averageSpeedKmPerHour")]
+    pub vin: String,
+    pub timestamp: Timestamp,
+
+    #[serde(rename = "odometerMeters")]
     pub average_speed_kmh: Option<f64>,
 
     #[serde(rename = "odometerMeters")]

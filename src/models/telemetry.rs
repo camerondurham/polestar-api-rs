@@ -4,55 +4,57 @@ use serde::{Deserialize, Serialize};
 
 /// Complete telemetry response from the API.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelemetryResponse {
+    /// Battery data array.
+    pub battery: Vec<Battery>,
+    /// Health data array.
+    pub health: Vec<Health>,
+    /// Odometer data array.
+    pub odometer: Vec<Option<Odometer>>,
+}
+
+/// Flattened telemetry data for single vehicle.
+#[derive(Debug, Clone)]
 pub struct Telemetry {
     /// Battery and charging information.
-    #[serde(flatten)]
     pub battery: Battery,
-
-    /// Odometer and speed information.
-    #[serde(flatten)]
-    pub odometer: Odometer,
-
     /// Vehicle health and status.
-    #[serde(flatten)]
     pub health: Health,
-
-    /// Event timestamp.
-    #[serde(rename = "eventUpdatedTimestamp")]
-    pub event_updated_timestamp: Option<Timestamp>,
+    /// Odometer information.
+    pub odometer: Option<Odometer>,
 }
 
 /// Battery and charging data.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Battery {
+    /// VIN.
+    pub vin: String,
+    /// Timestamp.
+    pub timestamp: Timestamp,
     /// Battery charge level as a percentage (0-100).
     #[serde(rename = "batteryChargeLevelPercentage")]
-    pub charge_level_percentage: Option<f64>,
-
-    /// Current charging status (e.g., "charging", "idle").
-    #[serde(rename = "batteryChargeStatus")]
+    pub charge_level_percentage: Option<i64>,
+    /// Current charging status.
+    #[serde(rename = "chargingStatus")]
     pub charge_status: Option<String>,
-
-    /// Current charging power in watts.
-    #[serde(rename = "chargingPowerWatts")]
-    pub charging_power_watts: Option<f64>,
-
     /// Estimated time to full charge in minutes.
     #[serde(rename = "estimatedChargingTimeToFullMinutes")]
     pub estimated_charging_time_minutes: Option<i64>,
-
     /// Estimated distance to empty in kilometers.
     #[serde(rename = "estimatedDistanceToEmptyKm")]
-    pub estimated_distance_to_empty_km: Option<f64>,
+    pub estimated_distance_to_empty_km: Option<i64>,
+    /// Estimated distance to empty in miles.
+    #[serde(rename = "estimatedDistanceToEmptyMiles")]
+    pub estimated_distance_to_empty_miles: Option<i64>,
 }
 
-/// Odometer and driving statistics.
+/// Odometer data.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Odometer {
-    /// Average speed in km/h.
-    #[serde(rename = "averageSpeedKmPerHour")]
-    pub average_speed_kmh: Option<f64>,
-
+    /// VIN.
+    pub vin: String,
+    /// Timestamp.
+    pub timestamp: Timestamp,
     /// Total distance traveled in meters.
     #[serde(rename = "odometerMeters")]
     pub odometer_meters: Option<i64>,
@@ -61,48 +63,35 @@ pub struct Odometer {
 /// Vehicle health and status information.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Health {
-    /// Service warning status.
-    #[serde(rename = "serviceWarningStatus")]
-    pub service_warning_status: Option<String>,
-
-    /// Internal vehicle identifier.
-    #[serde(rename = "internalVehicleIdentifier")]
-    pub internal_vehicle_identifier: Option<String>,
+    /// VIN.
+    pub vin: String,
+    /// Timestamp.
+    pub timestamp: Timestamp,
+    /// Days to service.
+    #[serde(rename = "daysToService")]
+    pub days_to_service: Option<i64>,
+    /// Distance to service in km.
+    #[serde(rename = "distanceToServiceKm")]
+    pub distance_to_service_km: Option<i64>,
+    /// Service warning.
+    #[serde(rename = "serviceWarning")]
+    pub service_warning: Option<String>,
+    /// Brake fluid level warning.
+    #[serde(rename = "brakeFluidLevelWarning")]
+    pub brake_fluid_level_warning: Option<String>,
+    /// Engine coolant level warning.
+    #[serde(rename = "engineCoolantLevelWarning")]
+    pub engine_coolant_level_warning: Option<String>,
+    /// Oil level warning.
+    #[serde(rename = "oilLevelWarning")]
+    pub oil_level_warning: Option<String>,
 }
 
-/// Timestamp in both ISO and Unix formats.
+/// Timestamp with seconds and nanoseconds.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Timestamp {
-    /// ISO 8601 formatted timestamp.
-    pub iso: Option<String>,
-
-    /// Unix timestamp (seconds since epoch).
-    pub unix: Option<i64>,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_battery_deserialization() {
-        let json = r#"{
-            "batteryChargeLevelPercentage": 85.5,
-            "batteryChargeStatus": "charging"
-        }"#;
-
-        let battery: Battery = serde_json::from_str(json).unwrap();
-        assert_eq!(battery.charge_level_percentage, Some(85.5));
-        assert_eq!(battery.charge_status, Some("charging".to_string()));
-    }
-
-    #[test]
-    fn test_battery_null_fields() {
-        let json = r#"{
-            "batteryChargeLevelPercentage": null
-        }"#;
-
-        let battery: Battery = serde_json::from_str(json).unwrap();
-        assert_eq!(battery.charge_level_percentage, None);
-    }
+    /// Seconds since epoch.
+    pub seconds: String,
+    /// Nanoseconds.
+    pub nanos: i64,
 }

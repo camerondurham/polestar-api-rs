@@ -75,17 +75,67 @@ impl PolestarClient {
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # let client = PolestarClient::new("user@example.com", "password")?;
     /// let telemetry = client.get_telemetry("VIN123").await?;
-    /// println!("Battery: {:?}%", telemetry.battery.charge_level_percentage);
+    /// if let Some(charge) = telemetry.battery.charge_level_percentage {
+    ///     println!("Battery: {}%", charge);
+    /// }
     /// # Ok(())
     /// # }
     /// ```
     pub async fn get_telemetry(&self, vin: &str) -> Result<Telemetry> {
-        let variables = serde_json::json!({
-            "vin": vin
+        let variables = serde_json::json!({"vins": [vin]});
+
+        let token = self.authenticate().await?;
+
+        let body = serde_json::json!({
+            "query": graphql::queries::CAR_TELEMETRICS_V2,
+            "variables": variables
         });
 
-        self.post_graphql(&self.pc_api_base, graphql::queries::CAR_TELEMETRICS_V2, variables)
-            .await
+        let response = self
+            .http_client
+            .post(&self.pc_api_base)
+            .header("authorization", format!("Bearer {}", token))
+            .header("content-type", "application/json")
+            .header("origin", "https://www.polestar.com")
+            .json(&body)
+            .send()
+            .await?;
+
+        let json: serde_json::Value = response.json().await?;
+
+        if let Some(errors) = json.get("errors") {
+            if let Some(message) = errors.get(0).and_then(|e| e.get("message")) {
+                return Err(PolestarError::GraphQLError(message.to_string()));
+            }
+        }
+
+        let telemetry_data = json
+            .get("data")
+            .and_then(|d| d.get("carTelematicsV2"))
+            .ok_or_else(|| PolestarError::ApiError("No carTelematicsV2 field in response".to_string()))?;
+
+        let response: crate::models::telemetry::TelemetryResponse =
+            serde_json::from_value(telemetry_data.clone())?;
+
+        let battery = response
+            .battery
+            .into_iter()
+            .next()
+            .ok_or_else(|| PolestarError::ApiError("No battery data in response".to_string()))?;
+
+        let health = response
+            .health
+            .into_iter()
+            .next()
+            .ok_or_else(|| PolestarError::ApiError("No health data in response".to_string()))?;
+
+        let odometer = response.odometer.into_iter().next().and_then(|o| o);
+
+        Ok(Telemetry {
+            battery,
+            health,
+            odometer,
+        })
     }
 
     /// Fetches complete vehicle information for the specified VIN.

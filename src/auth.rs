@@ -152,11 +152,11 @@ impl AuthState {
         }
 
         let text = response.text().await?;
-        
+
         // Extract resume path from HTML using regex
         let re = regex::Regex::new(r#"(?:url|action):\s*"(.+?)""#)
             .map_err(|e| PolestarError::ApiError(format!("Regex error: {}", e)))?;
-        
+
         if let Some(caps) = re.captures(&text) {
             if let Some(path) = caps.get(1) {
                 return Ok(path.as_str().to_string());
@@ -206,7 +206,7 @@ impl AuthState {
             .await?;
 
         let status = response.status();
-        
+
         // Check for auth error (4xx without redirect)
         if status.is_client_error() && !status.is_redirection() {
             let text = response.text().await?;
@@ -219,7 +219,7 @@ impl AuthState {
         // Handle redirects (302/303) - reqwest follows them automatically
         // So we need to check the final URL for the code parameter
         let final_url = response.url().clone();
-        
+
         // Check for code parameter in final URL
         if let Some(code) = final_url.query_pairs().find(|(k, _)| k == "code").map(|(_, v)| v.to_string()) {
             return Ok((code, code_verifier));
@@ -321,12 +321,12 @@ impl AuthState {
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await?;
-            
+
             // Check if refresh token is invalid/expired
             if status == reqwest::StatusCode::UNAUTHORIZED || text.contains("invalid_grant") {
                 return Err(PolestarError::TokenExpired);
             }
-            
+
             return Err(PolestarError::AuthError(format!(
                 "Token refresh failed: {}",
                 text
@@ -394,7 +394,7 @@ impl AuthState {
         // Full authentication flow with retry
         let max_retries = 2;
         let mut last_error = None;
-        
+
         for attempt in 0..max_retries {
             match self.get_authorization_code(client).await {
                 Ok((code, verifier)) => {
@@ -490,7 +490,7 @@ mod tests {
         };
         // Should need refresh when expires_in < refresh_window
         assert!(state.needs_refresh(600)); // window=300, expires_in=10
-        
+
         // Fresh token shouldn't need refresh
         state.expires_at = Utc::now() + Duration::seconds(3600);
         assert!(!state.needs_refresh(3600)); // window=300, expires_in=3600
@@ -502,7 +502,7 @@ mod tests {
         use wiremock::matchers::{method, path};
 
         let mock_server = MockServer::start().await;
-        
+
         let config_json = serde_json::json!({
             "issuer": "https://test.polestar.com",
             "token_endpoint": "https://test.polestar.com/token",
@@ -518,7 +518,7 @@ mod tests {
         // Override base URL for test
         let auth = AuthState::new("user".to_string(), "pass".to_string());
         let client = reqwest::Client::new();
-        
+
         // Note: This test would need to mock OIDC_PROVIDER_BASE_URL
         // For now, just verify the struct works
         assert_eq!(auth.username, "user");

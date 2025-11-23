@@ -11,8 +11,8 @@
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     let client = PolestarClient::new("your_username", "your_password")?;
 //!     let telemetry = client.get_telemetry("YOUR_VIN").await?;
-//!     println!("Battery: {:.1}%",
-//!         telemetry.battery.charge_level_percentage.unwrap_or(0.0));
+//!     println!("Battery: {}%",
+//!         telemetry.battery.charge_level_percentage.unwrap_or(0));
 //!     Ok(())
 //! }
 //! ```

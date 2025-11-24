@@ -501,7 +501,7 @@ mod tests {
 #[tokio::test]
 async fn test_get_telemetry() {
     let client = PolestarClient::new(env::var("POLESTAR_USERNAME").unwrap()).unwrap();
-    let result = client.get_telemetry("LPSED3KA1NL059445").await;
+    let result = client.get_telemetry("VIN1234567890").await;
     assert!(result.is_ok());
 }
 ```

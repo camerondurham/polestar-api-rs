@@ -153,11 +153,11 @@ mod tests {
     #[test]
     fn test_query_variable_substitution() {
         let variables = serde_json::json!({
-            "vin": "LPSED3KA1NL059445"
+            "vin": "VIN1234567890"
         });
 
         // Validate JSON structure
-        assert_eq!(variables["vin"], "LPSED3KA1NL059445");
+        assert_eq!(variables["vin"], "VIN1234567890");
     }
 }
 ```
@@ -329,7 +329,7 @@ fn get_test_client() -> Option<PolestarClient> {
 
 fn get_test_vin() -> String {
     env::var("POLESTAR_VIN")
-        .unwrap_or_else(|_| "LPSED3KA1NL059445".to_string())
+        .unwrap_or_else(|_| "VIN1234567890".to_string())
 }
 
 #[tokio::test]
@@ -604,19 +604,19 @@ async fn test_specifications(
 # Test telemetry endpoint
 cargo run --example test_harness -- \
   --token "USERNAME_PASSWORD" \
-  --vin "LPSED3KA1NL059445" \
+  --vin "VIN1234567890" \
   --endpoint telemetry
 
 # Test all endpoints
 cargo run --example test_harness -- \
   --token "USERNAME_PASSWORD" \
-  --vin "LPSED3KA1NL059445" \
+  --vin "VIN1234567890" \
   --endpoint all \
   --pretty
 
 # Use environment variables
 export POLESTAR_USERNAME="USERNAME_PASSWORD"
-export POLESTAR_VIN="LPSED3KA1NL059445"
+export POLESTAR_VIN="VIN1234567890"
 cargo run --example test_harness -- --endpoint all
 
 # Disable pretty printing for JSON parsing

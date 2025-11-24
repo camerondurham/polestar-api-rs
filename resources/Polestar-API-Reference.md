@@ -41,7 +41,7 @@ More Reference: https://github.com/pypolestar/polestar_api
     "carTelematicsV2": {
       "battery": [
         {
-          "vin": "LPSED3KA1NL059445",
+          "vin": "VIN1234567890",
           "timestamp": {
             "seconds": "1752903173",
             "nanos": 100928162
@@ -55,7 +55,7 @@ More Reference: https://github.com/pypolestar/polestar_api
       ],
       "health": [
         {
-          "vin": "LPSED3KA1NL059445",
+          "vin": "VIN1234567890",
           "timestamp": {
             "seconds": "1752600923",
             "nanos": 673959558
@@ -148,9 +148,9 @@ More Reference: https://github.com/pypolestar/polestar_api
   "data": {
     "getConsumerCarsV2": [
       {
-        "vin": "LPSED3KA1NL059445",
-        "primaryDriver": "2830fa23-93aa-4dc2-a97f-8e5a2ad8444a",
-        "internalVehicleIdentifier": "c1182427-69b7-41a1-8cbe-1332944c743c",
+        "vin": "VIN1234567890",
+        "primaryDriver": "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX",
+        "internalVehicleIdentifier": "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX",
         "registrationNo": null,
         "market": "US",
         "currentPlannedDeliveryDate": "2022-01-03",
@@ -161,7 +161,7 @@ More Reference: https://github.com/pypolestar/polestar_api
           {
             "information": {
               "ownerType": "private",
-              "polestarId": "2830fa23-93aa-4dc2-a97f-8e5a2ad8444a"
+              "polestarId": "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
             }
           }
         ],

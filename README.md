@@ -11,9 +11,9 @@ A lightweight, type-safe Rust wrapper for the Polestar vehicle GraphQL API.
 
 ## Supported Endpoints
 
-- [WIP] **Vehicle Telemetry** - Battery status, charging info, odometer
-- ✅ **Consumer Vehicle Data** - Vehicle specifications, features, images
-- [WIP] **Specifications** - Detailed vehicle specification metadata
+- [x] **Vehicle Telemetry** - Battery status, charging info, odometer, health
+- [x] **Consumer Vehicle Data** - Vehicle specifications, features, images
+- [ ] **Specifications** - Detailed vehicle specification metadata (planned)
 
 ## Quick Start
 

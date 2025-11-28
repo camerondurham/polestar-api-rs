@@ -67,6 +67,266 @@ query GetConsumerCarsV2 {
 }
 "#;
 
+/// GraphQL query for fetching verbose vehicle consumer data.
+///
+/// Returns extended vehicle information including service history, emissions data,
+/// detailed specifications, features, and all available metadata.
+pub const GET_CONSUMER_CARS_V2_VERBOSE: &str = r#"
+query GetConsumerCarsV2 {
+    getConsumerCarsV2 {
+        vin
+        internalVehicleIdentifier
+        salesType
+        currentPlannedDeliveryDate
+        market
+        originalMarket
+        pno34
+        modelYear
+        registrationNo
+        metaOrderNumber
+        factoryCompleteDate
+        registrationDate
+        deliveryDate
+        serviceHistory {
+            claimType
+            market
+            mileage
+            mileageUnit
+            operations {
+                id
+                code
+                description
+                quantity
+                performedDate
+            }
+            orderEndDate
+            orderNumber
+            orderStartDate
+            parts {
+                id
+                code
+                description
+                quantity
+                performedDate
+            }
+            statusDMS
+            symptomCode
+            vehicleAge
+            workshopId
+        }
+        content {
+            exterior {
+                code
+                name
+                description
+                excluded
+            }
+            exteriorDetails {
+                code
+                name
+                description
+                excluded
+            }
+            interior {
+                code
+                name
+                description
+                excluded
+            }
+            performancePackage {
+                code
+                name
+                description
+                excluded
+            }
+            performanceOptimizationSpecification {
+                power {
+                    value
+                    unit
+                }
+                torqueMax {
+                    value
+                    unit
+                }
+                acceleration {
+                    value
+                    unit
+                    description
+                }
+            }
+            wheels {
+                code
+                name
+                description
+                excluded
+            }
+            plusPackage {
+                code
+                name
+                description
+                excluded
+            }
+            pilotPackage {
+                code
+                name
+                description
+                excluded
+            }
+            motor {
+                name
+                description
+                excluded
+            }
+            model {
+                name
+                code
+            }
+            specification {
+                battery
+                bodyType
+                brakes
+                combustionEngine
+                electricMotors
+                performance
+                suspension
+                tireSizes
+                torque
+                totalHp
+                totalKw
+                trunkCapacity {
+                    label
+                    value
+                }
+            }
+            dimensions {
+                wheelbase {
+                    label
+                    value
+                }
+                groundClearanceWithPerformance {
+                    label
+                    value
+                }
+                groundClearanceWithoutPerformance {
+                    label
+                    value
+                }
+                dimensions {
+                    label
+                    value
+                }
+            }
+            towbar {
+                code
+                name
+                description
+                excluded
+            }
+        }
+        primaryDriver
+        primaryDriverRegistrationTimestamp
+        owners {
+            id
+            registeredAt
+            information {
+                polestarId
+                ownerType
+            }
+        }
+        wltpNedcData {
+            wltpCO2Unit
+            wltpElecEnergyConsumption
+            wltpElecEnergyUnit
+            wltpElecRange
+            wltpElecRangeUnit
+            wltpWeightedCombinedCO2
+            wltpWeightedCombinedFuelConsumption
+            wltpWeightedCombinedFuelConsumptionUnit
+        }
+        energy {
+            elecRange
+            elecRangeUnit
+            elecEnergyConsumption
+            elecEnergyUnit
+            weightedCombinedCO2
+            weightedCombinedCO2Unit
+            weightedCombinedFuelConsumption
+            weightedCombinedFuelConsumptionUnit
+        }
+        fuelType
+        drivetrain
+        numberOfDoors
+        numberOfSeats
+        motor {
+            description
+            code
+        }
+        maxTrailerWeight {
+            value
+            unit
+        }
+        curbWeight {
+            value
+            unit
+        }
+        hasPerformancePackage
+        numberOfCylinders
+        cylinderVolume
+        cylinderVolumeUnit
+        transmission
+        numberOfGears
+        structureWeek
+        software {
+            version
+            versionTimestamp
+            performanceOptimization {
+                value
+                description
+                timestamp
+            }
+        }
+        latestClaimStatus {
+            mileage
+            mileageUnit
+            registeredDate
+            vehicleAge
+        }
+        edition
+        commonStatusPoint {
+            code
+            timestamp
+            description
+        }
+        brandStatus {
+            code
+            timestamp
+            description
+        }
+        intermediateDestinationCode
+        partnerDestinationCode
+        features {
+            type
+            code
+            name
+            description
+            excluded
+            galleryImage {
+                url
+                alt
+            }
+            thumbnail {
+                url
+                alt
+            }
+        }
+        electricalEngineNumbers {
+            number
+            placement
+        }
+    }
+}
+"#;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -75,6 +335,7 @@ mod tests {
     fn test_queries_not_empty() {
         assert!(!CAR_TELEMETRICS_V2.is_empty());
         assert!(!GET_CONSUMER_CARS_V2.is_empty());
+        assert!(!GET_CONSUMER_CARS_V2_VERBOSE.is_empty());
     }
 
     #[test]
@@ -91,5 +352,14 @@ mod tests {
         assert!(GET_CONSUMER_CARS_V2.contains("GetConsumerCarsV2"));
         assert!(GET_CONSUMER_CARS_V2.contains("getConsumerCarsV2"));
         assert!(GET_CONSUMER_CARS_V2.contains("content"));
+    }
+
+    #[test]
+    fn test_verbose_vehicle_query_structure() {
+        assert!(GET_CONSUMER_CARS_V2_VERBOSE.contains("GetConsumerCarsV2"));
+        assert!(GET_CONSUMER_CARS_V2_VERBOSE.contains("getConsumerCarsV2"));
+        assert!(GET_CONSUMER_CARS_V2_VERBOSE.contains("serviceHistory"));
+        assert!(GET_CONSUMER_CARS_V2_VERBOSE.contains("wltpNedcData"));
+        assert!(GET_CONSUMER_CARS_V2_VERBOSE.contains("features"));
     }
 }

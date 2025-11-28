@@ -27,3 +27,4 @@ credentials/
 # Test artifacts
 *.profraw
 *.profdata
+.env

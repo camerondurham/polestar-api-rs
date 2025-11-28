@@ -43,6 +43,9 @@ regex = "1.10"
 # Optional: Caching (feature-gated)
 moka = { version = "0.12", features = ["future"], optional = true }
 
+# Environment variables
+dotenv = "0.15"
+
 [dev-dependencies]
 # Testing
 tokio-test = "0.4"
@@ -64,6 +67,12 @@ name = "basic_telemetry"
 
 [[example]]
 name = "vehicle_info"
+
+[[example]]
+name = "graphql_introspection"
+
+[[example]]
+name = "verbose_vehicle_info"
 
 [features]
 default = []

@@ -144,13 +144,36 @@ impl PolestarClient {
     ///
     /// * `vin` - Vehicle Identification Number
     pub async fn get_vehicle(&self, vin: &str) -> Result<Vehicle> {
+        self.get_vehicle_internal(vin, false).await
+    }
+
+    /// Fetches verbose vehicle information for the specified VIN.
+    ///
+    /// This retrieves extended vehicle data including service history, emissions data,
+    /// detailed specifications, features, and all available metadata.
+    ///
+    /// # Arguments
+    ///
+    /// * `vin` - Vehicle Identification Number
+    pub async fn get_vehicle_verbose(&self, vin: &str) -> Result<Vehicle> {
+        self.get_vehicle_internal(vin, true).await
+    }
+
+    /// Internal method to fetch vehicle information.
+    async fn get_vehicle_internal(&self, vin: &str, verbose: bool) -> Result<Vehicle> {
         let variables = serde_json::json!({});
 
         // Get token
         let token = self.authenticate().await?;
 
+        let query = if verbose {
+            graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE
+        } else {
+            graphql::queries::GET_CONSUMER_CARS_V2
+        };
+
         let body = serde_json::json!({
-            "query": graphql::queries::GET_CONSUMER_CARS_V2,
+            "query": query,
             "variables": variables
         });
 

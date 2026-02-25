@@ -9,6 +9,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::error::{PolestarError, Result};
+use crate::redact::redact_str;
 
 // Auth constants
 pub const OIDC_PROVIDER_BASE_URL: &str = "https://polestarid.eu.polestar.com";
@@ -385,7 +386,8 @@ impl AuthState {
                     }
                     Err(e) => {
                         // Other error, try full auth
-                        eprintln!("Token refresh failed: {}, attempting full auth", e);
+                        let message = format!("Token refresh failed: {}, attempting full auth", e);
+                        eprintln!("{}", redact_str(&message));
                     }
                 }
             }

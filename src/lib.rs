@@ -25,6 +25,7 @@ pub mod client;
 pub mod error;
 pub mod graphql;
 pub mod models;
+pub mod redact;
 
 // Re-export main types for convenience
 pub use client::PolestarClient;

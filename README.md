@@ -61,6 +61,15 @@ export POLESTAR_PASSWORD="your_password"
 export POLESTAR_VIN="your_vin"
 ```
 
+**Redaction helper**: The crate includes a small redaction utility you can run on any log message to mask emails, passwords, VINs, and access/refresh tokens before they hit logs:
+
+```rust
+use polestar_api::redact::redact_str;
+
+let message = format!("Refreshing token for {}", username);
+log::warn!("{}", redact_str(&message));
+```
+
 ## Examples
 
 ### Get Battery Status

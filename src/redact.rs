@@ -35,7 +35,7 @@ fn password_quoted_re() -> &'static Regex {
 fn password_plain_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
-        Regex::new(r#"(?i)(\b(?:password|pass|pwd|pf\.pass)\b\s*[:=]\s*)([^\s,;]+)"#)
+        Regex::new(r#"(?i)(\b(?:password|pass|pwd|pf\.pass)\b\s*[:=]\s*)([^\s,;\"]+)"#)
             .expect("plain password regex should compile")
     })
 }
@@ -54,7 +54,7 @@ fn token_plain_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
         Regex::new(
-            r#"(?i)(\b(?:access_token|refresh_token|access-token|refresh-token)\b\s*[:=]\s*)([^\s,;]+)"#,
+            r#"(?i)(\b(?:access_token|refresh_token|access-token|refresh-token)\b\s*[:=]\s*)([^\s,;\"]+)"#,
         )
         .expect("plain token regex should compile")
     })

@@ -3,6 +3,9 @@
 use regex::Regex;
 use std::sync::OnceLock;
 
+// We compile regexes lazily and cache them with OnceLock to avoid the runtime
+// cost of recompiling on every log call while staying thread-safe.
+
 fn email_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {

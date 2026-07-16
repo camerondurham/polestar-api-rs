@@ -38,13 +38,11 @@ const INTROSPECTION_QUERY: &str = r#"
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Load environment variables from .env file
-    dotenv::dotenv().ok();
+    dotenvy::dotenv().ok();
 
     // Load credentials from environment
-    let username = env::var("POLESTAR_USERNAME")
-        .expect("POLESTAR_USERNAME must be set");
-    let password = env::var("POLESTAR_PASSWORD")
-        .expect("POLESTAR_PASSWORD must be set");
+    let username = env::var("POLESTAR_USERNAME").expect("POLESTAR_USERNAME must be set");
+    let password = env::var("POLESTAR_PASSWORD").expect("POLESTAR_PASSWORD must be set");
 
     println!("Polestar GraphQL API Introspection Tool");
     println!("==========================================\n");
@@ -135,19 +133,37 @@ fn analyze_schema(schema: &Value) {
 
     // Get query type
     if let Some(query_type) = schema_data.get("queryType") {
-        println!("Query Type: {}", query_type.get("name").and_then(|n| n.as_str()).unwrap_or("Unknown"));
+        println!(
+            "Query Type: {}",
+            query_type
+                .get("name")
+                .and_then(|n| n.as_str())
+                .unwrap_or("Unknown")
+        );
     }
 
     // Get mutation type
     if let Some(mutation_type) = schema_data.get("mutationType") {
-        println!("Mutation Type: {}", mutation_type.get("name").and_then(|n| n.as_str()).unwrap_or("None"));
+        println!(
+            "Mutation Type: {}",
+            mutation_type
+                .get("name")
+                .and_then(|n| n.as_str())
+                .unwrap_or("None")
+        );
     } else {
         println!("Mutation Type: None");
     }
 
     // Get subscription type
     if let Some(subscription_type) = schema_data.get("subscriptionType") {
-        println!("Subscription Type: {}", subscription_type.get("name").and_then(|n| n.as_str()).unwrap_or("None"));
+        println!(
+            "Subscription Type: {}",
+            subscription_type
+                .get("name")
+                .and_then(|n| n.as_str())
+                .unwrap_or("None")
+        );
     } else {
         println!("Subscription Type: None");
     }
@@ -168,7 +184,10 @@ fn analyze_schema(schema: &Value) {
 
         for type_def in types {
             let kind = type_def.get("kind").and_then(|k| k.as_str()).unwrap_or("");
-            let name = type_def.get("name").and_then(|n| n.as_str()).unwrap_or("Unknown");
+            let name = type_def
+                .get("name")
+                .and_then(|n| n.as_str())
+                .unwrap_or("Unknown");
 
             // Skip introspection types
             if name.starts_with("__") {
@@ -204,7 +223,7 @@ fn analyze_schema(schema: &Value) {
         println!("AVAILABLE QUERIES ({})", query_types.len());
         println!("====================\n");
 
-        let implemented_queries = vec!["carTelematicsV2", "getConsumerCarsV2"];
+        let implemented_queries = ["carTelematicsV2", "getConsumerCarsV2"];
 
         for field_info in &query_types {
             let status = if implemented_queries.contains(&field_info.name.as_str()) {
@@ -255,8 +274,20 @@ fn analyze_schema(schema: &Value) {
         println!("\nSUMMARY");
         println!("==========");
         println!("Total Queries: {}", query_types.len());
-        println!("Implemented: {}", query_types.iter().filter(|f| implemented_queries.contains(&f.name.as_str())).count());
-        println!("Not Implemented: {}", query_types.iter().filter(|f| !implemented_queries.contains(&f.name.as_str())).count());
+        println!(
+            "Implemented: {}",
+            query_types
+                .iter()
+                .filter(|f| implemented_queries.contains(&f.name.as_str()))
+                .count()
+        );
+        println!(
+            "Not Implemented: {}",
+            query_types
+                .iter()
+                .filter(|f| !implemented_queries.contains(&f.name.as_str()))
+                .count()
+        );
         println!("Total Mutations: {}", mutation_types.len());
         println!("Total Object Types: {}", object_types.len());
         println!("Total Input Types: {}", input_types.len());
@@ -280,12 +311,14 @@ struct ArgInfo {
 }
 
 fn extract_field_info(field: &Value) -> FieldInfo {
-    let name = field.get("name")
+    let name = field
+        .get("name")
         .and_then(|n| n.as_str())
         .unwrap_or("Unknown")
         .to_string();
 
-    let description = field.get("description")
+    let description = field
+        .get("description")
         .and_then(|d| d.as_str())
         .map(|s| s.to_string());
 
@@ -293,8 +326,15 @@ fn extract_field_info(field: &Value) -> FieldInfo {
     if let Some(args_array) = field.get("args").and_then(|a| a.as_array()) {
         for arg in args_array {
             args.push(ArgInfo {
-                name: arg.get("name").and_then(|n| n.as_str()).unwrap_or("").to_string(),
-                description: arg.get("description").and_then(|d| d.as_str()).map(|s| s.to_string()),
+                name: arg
+                    .get("name")
+                    .and_then(|n| n.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                description: arg
+                    .get("description")
+                    .and_then(|d| d.as_str())
+                    .map(|s| s.to_string()),
                 type_name: extract_type_name(arg.get("type")),
             });
         }
@@ -321,9 +361,11 @@ fn extract_type_name(type_ref: Option<&Value>) -> String {
                 "LIST" => {
                     format!("[{}]", extract_type_name(t.get("ofType")))
                 }
-                _ => {
-                    t.get("name").and_then(|n| n.as_str()).unwrap_or("Unknown").to_string()
-                }
+                _ => t
+                    .get("name")
+                    .and_then(|n| n.as_str())
+                    .unwrap_or("Unknown")
+                    .to_string(),
             }
         }
         None => "Unknown".to_string(),

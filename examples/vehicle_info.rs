@@ -37,7 +37,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             println!("\n=== Model ===");
-            if let Some(name) = &vehicle.content.model.name {
+            if let Some(name) = vehicle
+                .model_name
+                .as_ref()
+                .or(vehicle.content.model.name.as_ref())
+            {
                 println!("  Name: {}", name);
             }
             if let Some(code) = &vehicle.content.model.code {

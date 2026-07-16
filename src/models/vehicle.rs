@@ -16,10 +16,15 @@ pub struct Vehicle {
     #[serde(rename = "registrationNo")]
     pub registration_number: Option<String>,
 
+    /// Current display name returned by the supported vehicle-summary query.
+    #[serde(rename = "modelName")]
+    pub model_name: Option<String>,
+
     /// Market (e.g., "US", "EU").
     pub market: Option<String>,
 
     /// Vehicle content and specifications.
+    #[serde(default)]
     pub content: VehicleContent,
 
     // Verbose fields below
@@ -172,7 +177,7 @@ pub struct Vehicle {
 }
 
 /// Vehicle content and specifications.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct VehicleContent {
     /// Model information.
     pub model: ModelInfo,
@@ -224,7 +229,7 @@ pub struct VehicleContent {
 }
 
 /// Model information.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ModelInfo {
     /// Model code.
     pub code: Option<String>,
@@ -759,5 +764,23 @@ mod tests {
         assert_eq!(vehicle.vin, "TEST123");
         assert_eq!(vehicle.market, Some("US".to_string()));
         assert_eq!(vehicle.content.model.name, Some("Polestar 2".to_string()));
+    }
+
+    #[test]
+    fn test_current_vehicle_summary_deserialization() {
+        let json = r#"{
+            "vin": "YSMYKEAE7RB000000",
+            "internalVehicleIdentifier": "1aaeb452-700e-46f3-9899-395b6219c8a6",
+            "registrationNo": "MLB007",
+            "modelYear": "2024",
+            "modelName": "Polestar 3",
+            "pno34": "359...",
+            "structureWeek": "202420"
+        }"#;
+
+        let vehicle: Vehicle = serde_json::from_str(json).unwrap();
+        assert_eq!(vehicle.model_name.as_deref(), Some("Polestar 3"));
+        assert_eq!(vehicle.model_year.as_deref(), Some("2024"));
+        assert!(vehicle.content.model.name.is_none());
     }
 }

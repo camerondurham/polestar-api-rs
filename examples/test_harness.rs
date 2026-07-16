@@ -103,7 +103,11 @@ async fn test_telemetry(
     }
 
     println!("\n✓ Telemetry API test passed");
-    if let Some(charge) = result.battery.charge_level_percentage {
+    if let Some(charge) = result
+        .battery
+        .as_ref()
+        .and_then(|battery| battery.charge_level_percentage)
+    {
         println!("  Battery: {}%", charge);
     }
 

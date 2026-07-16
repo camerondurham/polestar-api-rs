@@ -1,0 +1,236 @@
+//! Command-line interface for inspecting account vehicles and telemetry.
+
+use clap::{Parser, Subcommand};
+use polestar_api::auth::AuthState;
+use polestar_api::models::telemetry::Telemetry;
+use polestar_api::models::vehicle::Vehicle;
+use polestar_api::PolestarClient;
+use std::error::Error;
+use std::io;
+
+#[derive(Parser)]
+#[command(name = "polestar", version, about = "Read Polestar vehicle telemetry")]
+struct Cli {
+    /// Polestar ID email; prefer the POLESTAR_USERNAME environment variable.
+    #[arg(long, env = "POLESTAR_USERNAME", global = true, hide_env_values = true)]
+    username: Option<String>,
+
+    /// Polestar ID password; prefer the POLESTAR_PASSWORD environment variable.
+    #[arg(long, env = "POLESTAR_PASSWORD", global = true, hide_env_values = true)]
+    password: Option<String>,
+
+    /// Vehicle VIN. If omitted, the only vehicle in the account is selected.
+    #[arg(long, env = "POLESTAR_VIN", global = true, hide_env_values = true)]
+    vin: Option<String>,
+
+    #[command(subcommand)]
+    command: Option<Command>,
+}
+
+#[derive(Subcommand)]
+enum Command {
+    /// Verify the public authentication service and local configuration.
+    Doctor,
+    /// List vehicles associated with the Polestar account.
+    Vehicles {
+        /// Emit the complete response as JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Fetch current battery, odometer, and health telemetry (default).
+    Telemetry {
+        /// Emit the complete response as JSON.
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+    dotenvy::dotenv().ok();
+    let cli = Cli::parse();
+
+    match cli
+        .command
+        .as_ref()
+        .unwrap_or(&Command::Telemetry { json: false })
+    {
+        Command::Doctor => doctor(&cli).await?,
+        Command::Vehicles { json } => {
+            let client = client_from_cli(&cli)?;
+            let vehicles = client.get_vehicles().await?;
+            print_vehicles(&vehicles, *json)?;
+        }
+        Command::Telemetry { json } => {
+            let client = client_from_cli(&cli)?;
+            let vin = resolve_vin(&client, cli.vin.as_deref()).await?;
+            let telemetry = client.get_telemetry(&vin).await?;
+            print_telemetry(&telemetry, *json)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn client_from_cli(cli: &Cli) -> Result<PolestarClient, Box<dyn Error>> {
+    let username = cli.username.clone().ok_or_else(|| {
+        io::Error::other(
+            "POLESTAR_USERNAME is missing; copy .env.example to .env and add your Polestar ID email",
+        )
+    })?;
+    let password = cli.password.clone().ok_or_else(|| {
+        io::Error::other(
+            "POLESTAR_PASSWORD is missing; copy .env.example to .env and add your Polestar ID password",
+        )
+    })?;
+
+    Ok(PolestarClient::new(username, password)?)
+}
+
+async fn doctor(cli: &Cli) -> Result<(), Box<dyn Error>> {
+    let http_client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()?;
+    let auth = AuthState::new(String::new(), String::new());
+    let oidc = auth.get_oidc_config(&http_client).await?;
+
+    println!("Polestar auth service: reachable ({})", oidc.issuer);
+    println!("POLESTAR_USERNAME: {}", configured(cli.username.as_deref()));
+    println!("POLESTAR_PASSWORD: {}", configured(cli.password.as_deref()));
+    println!("POLESTAR_VIN: {}", configured(cli.vin.as_deref()));
+    println!("VIN is optional when the account contains exactly one vehicle.");
+
+    Ok(())
+}
+
+fn configured(value: Option<&str>) -> &'static str {
+    if value.is_some_and(|value| !value.trim().is_empty()) {
+        "configured"
+    } else {
+        "missing"
+    }
+}
+
+async fn resolve_vin(
+    client: &PolestarClient,
+    configured_vin: Option<&str>,
+) -> Result<String, Box<dyn Error>> {
+    if let Some(vin) = configured_vin.filter(|vin| !vin.trim().is_empty()) {
+        return Ok(vin.trim().to_ascii_uppercase());
+    }
+
+    let vehicles = client.get_vehicles().await?;
+    match vehicles.as_slice() {
+        [vehicle] => Ok(vehicle.vin.clone()),
+        [] => Err(io::Error::other("No vehicles were returned for this Polestar account").into()),
+        _ => {
+            eprintln!("Multiple vehicles are associated with this account:");
+            for vehicle in &vehicles {
+                eprintln!("  {}  {}", masked_vin(&vehicle.vin), display_model(vehicle));
+            }
+            Err(io::Error::other(
+                "Set POLESTAR_VIN to select a vehicle (run `polestar vehicles --json` to see full VINs)",
+            )
+            .into())
+        }
+    }
+}
+
+fn print_vehicles(vehicles: &[Vehicle], json: bool) -> Result<(), Box<dyn Error>> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(vehicles)?);
+        return Ok(());
+    }
+
+    if vehicles.is_empty() {
+        println!("No vehicles returned.");
+    }
+    for vehicle in vehicles {
+        println!(
+            "{}  {}{}",
+            masked_vin(&vehicle.vin),
+            display_model(vehicle),
+            vehicle
+                .model_year
+                .as_deref()
+                .map(|year| format!(" ({year})"))
+                .unwrap_or_default()
+        );
+    }
+
+    Ok(())
+}
+
+fn print_telemetry(telemetry: &Telemetry, json: bool) -> Result<(), Box<dyn Error>> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(telemetry)?);
+        return Ok(());
+    }
+
+    println!("Battery");
+    if let Some(battery) = &telemetry.battery {
+        print_optional("  Charge", battery.charge_level_percentage, "%");
+        if let Some(status) = &battery.charge_status {
+            println!("  Status: {status}");
+        }
+        print_optional(
+            "  Time to full",
+            battery.estimated_charging_time_minutes,
+            " min",
+        );
+        print_optional(
+            "  Estimated range",
+            battery.estimated_distance_to_empty_km,
+            " km",
+        );
+    } else {
+        println!("  No sample returned");
+    }
+
+    println!("Odometer");
+    if let Some(meters) = telemetry
+        .odometer
+        .as_ref()
+        .and_then(|odometer| odometer.odometer_meters)
+    {
+        println!("  {:.1} km", meters as f64 / 1000.0);
+    } else {
+        println!("  No sample returned");
+    }
+
+    println!("Health");
+    if let Some(health) = &telemetry.health {
+        if let Some(warning) = &health.service_warning {
+            println!("  Service: {warning}");
+        }
+        print_optional("  Days to service", health.days_to_service, "");
+        print_optional(
+            "  Distance to service",
+            health.distance_to_service_km,
+            " km",
+        );
+    } else {
+        println!("  No sample returned");
+    }
+
+    Ok(())
+}
+
+fn print_optional(label: &str, value: Option<i64>, suffix: &str) {
+    if let Some(value) = value {
+        println!("{label}: {value}{suffix}");
+    }
+}
+
+fn display_model(vehicle: &Vehicle) -> &str {
+    vehicle
+        .model_name
+        .as_deref()
+        .or(vehicle.content.model.name.as_deref())
+        .unwrap_or("unknown model")
+}
+
+fn masked_vin(vin: &str) -> String {
+    let suffix = vin.get(vin.len().saturating_sub(4)..).unwrap_or(vin);
+    format!("*************{suffix}")
+}

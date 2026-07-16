@@ -27,17 +27,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match client.get_telemetry(&vin).await {
         Ok(telemetry) => {
             println!("\n=== Battery Information ===");
-            if let Some(charge) = telemetry.battery.charge_level_percentage {
-                println!("  Charge Level: {}%", charge);
-            }
-            if let Some(status) = &telemetry.battery.charge_status {
-                println!("  Status: {}", status);
-            }
-            if let Some(time) = telemetry.battery.estimated_charging_time_minutes {
-                println!("  Time to Full: {} minutes", time);
-            }
-            if let Some(range) = telemetry.battery.estimated_distance_to_empty_km {
-                println!("  Estimated Range: {} km", range);
+            if let Some(battery) = &telemetry.battery {
+                if let Some(charge) = battery.charge_level_percentage {
+                    println!("  Charge Level: {}%", charge);
+                }
+                if let Some(status) = &battery.charge_status {
+                    println!("  Status: {}", status);
+                }
+                if let Some(time) = battery.estimated_charging_time_minutes {
+                    println!("  Time to Full: {} minutes", time);
+                }
+                if let Some(range) = battery.estimated_distance_to_empty_km {
+                    println!("  Estimated Range: {} km", range);
+                }
+            } else {
+                println!("  No battery sample returned");
             }
 
             println!("\n=== Odometer ===");
@@ -48,8 +52,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             println!("\n=== Health ===");
-            if let Some(warning) = &telemetry.health.service_warning {
-                println!("  Service Warning: {}", warning);
+            if let Some(health) = &telemetry.health {
+                if let Some(warning) = &health.service_warning {
+                    println!("  Service Warning: {}", warning);
+                }
+            } else {
+                println!("  No health sample returned");
             }
         }
         Err(e) => {

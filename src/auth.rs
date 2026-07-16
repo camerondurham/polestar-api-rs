@@ -195,12 +195,16 @@ impl AuthState {
         client: &reqwest::Client,
     ) -> Result<(String, String)> {
         let config = self.get_oidc_config(client).await?;
+        // Login depends on inspecting the provider's redirect responses. Use a
+        // dedicated client so callers do not need to disable redirects on
+        // their general-purpose HTTP client.
+        let authorization_client = build_authorization_client()?;
         let state = generate_state();
         let code_verifier = generate_code_verifier();
         let code_challenge = generate_code_challenge(&code_verifier);
 
         let resume_path = self
-            .get_resume_path(client, &config, &state, &code_challenge)
+            .get_resume_path(&authorization_client, &config, &state, &code_challenge)
             .await?;
         let resume_url = format!("{}{}", OIDC_PROVIDER_BASE_URL, resume_path);
 
@@ -222,7 +226,7 @@ impl AuthState {
             ("pf.pass", self.password.as_str()),
         ];
 
-        let mut response = client
+        let mut response = authorization_client
             .post(&resume_url)
             .query(&params)
             .form(&form)
@@ -251,7 +255,7 @@ impl AuthState {
             })?;
             let confirmation_form = [("pf.submit", "true"), ("subject", uid.as_str())];
 
-            response = client
+            response = authorization_client
                 .post(&resume_url)
                 .query(&params)
                 .form(&confirmation_form)
@@ -274,7 +278,7 @@ impl AuthState {
         })?;
 
         // Complete the browser callback so the provider can finalize its session cookies.
-        let callback_response = client.get(redirect_url).send().await?;
+        let callback_response = authorization_client.get(redirect_url).send().await?;
         if !callback_response.status().is_success() {
             return Err(PolestarError::AuthError(format!(
                 "Authentication callback failed: {}",
@@ -464,6 +468,15 @@ impl AuthState {
     }
 }
 
+fn build_authorization_client() -> Result<reqwest::Client> {
+    Ok(reqwest::Client::builder()
+        .cookie_store(true)
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(std::time::Duration::from_secs(30))
+        .user_agent(concat!("polestar-api-rs/", env!("CARGO_PKG_VERSION")))
+        .build()?)
+}
+
 fn redirect_target(response: &reqwest::Response) -> Result<reqwest::Url> {
     let location = response
         .headers()
@@ -508,6 +521,9 @@ pub fn generate_state() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+    use std::thread;
 
     #[test]
     fn test_generate_code_verifier() {
@@ -570,5 +586,35 @@ mod tests {
 
         assert_eq!(config.issuer, "https://test.polestar.com");
         assert_eq!(config.token_endpoint, "https://test.polestar.com/token");
+    }
+
+    #[tokio::test]
+    async fn authorization_client_preserves_redirect_response() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0_u8; 1024];
+            let _ = stream.read(&mut request).unwrap();
+            stream
+                .write_all(
+                    b"HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:9/callback\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                )
+                .unwrap();
+        });
+
+        let response = build_authorization_client()
+            .unwrap()
+            .get(format!("http://{address}/login"))
+            .send()
+            .await
+            .unwrap();
+
+        server.join().unwrap();
+        assert!(response.status().is_redirection());
+        assert_eq!(
+            response.headers().get(LOCATION).unwrap(),
+            "http://127.0.0.1:9/callback"
+        );
     }
 }

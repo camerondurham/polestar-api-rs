@@ -27,13 +27,9 @@ pub struct PolestarClient {
 
 impl PolestarClient {
     /// Creates a new Polestar API client with the provided account credentials.
-    ///
-    /// Redirects are deliberately handled by the authentication code because
-    /// the OAuth authorization code is carried in a redirect `Location` header.
     pub fn new(username: impl Into<String>, password: impl Into<String>) -> Result<Self> {
         let http_client = reqwest::Client::builder()
             .cookie_store(true)
-            .redirect(reqwest::redirect::Policy::none())
             .timeout(std::time::Duration::from_secs(30))
             .user_agent(concat!("polestar-api-rs/", env!("CARGO_PKG_VERSION")))
             .build()?;

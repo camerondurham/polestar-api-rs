@@ -1,183 +1,146 @@
 # polestar-api
 
-A lightweight, type-safe Rust wrapper for the Polestar vehicle GraphQL API.
+An unofficial, type-safe Rust client for reading Polestar account vehicles and
+cloud telemetry.
 
-> **Disclaimer**: This library is not affiliated with nor supported by Polestar.
+> This project is not affiliated with or supported by Polestar. The underlying
+> API is private and can change without notice.
 
-[![CI](https://github.com/camerondurham/polestar-api/workflows/Tests/badge.svg)](https://github.com/camerondurham/polestar-api/actions)
-[![Crates.io](https://img.shields.io/crates/v/polestar-api.svg)](https://crates.io/crates/polestar-api)
-[![Documentation](https://docs.rs/polestar-api/badge.svg)](https://docs.rs/polestar-api)
+[![CI](https://github.com/camerondurham/polestar-api-rs/actions/workflows/rust.yml/badge.svg)](https://github.com/camerondurham/polestar-api-rs/actions/workflows/rust.yml)
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)]()
 
-## Supported Endpoints
+## What it reads
 
-- [x] **Vehicle Telemetry** - Battery status, charging info, odometer, health
-- [x] **Consumer Vehicle Data** - Vehicle specifications, features, images
-- [ ] **Specifications** - Detailed vehicle specification metadata (planned)
+- Battery percentage, charging status, estimated time to full, and estimated range
+- Odometer
+- Service interval and available health warnings
+- Vehicle summaries and VIN discovery for the authenticated account
 
-## Quick Start
+Individual telemetry groups are optional because Polestar does not return every
+signal for every vehicle model. This is snapshot data from Polestar's cloud, not
+a direct or real-time connection to the car.
 
-### Installation
+The client does not currently expose location, doors, climate controls, charge
+target changes, or other remote-control operations.
 
-Add this to your `Cargo.toml`:
+## What you need
 
-```toml
-[dependencies]
-polestar-api = "0.1"
-tokio = { version = "1", features = ["full"] }
+1. The email address for the Polestar ID used in the mobile app
+2. That account's password
+3. The VIN only when the account contains multiple vehicles; a single VIN is
+   discovered automatically
+4. Outbound HTTPS access to Polestar's identity and vehicle API services
+
+No API key, OAuth client secret, or developer account is required. Authentication
+uses the same public OIDC/PKCE flow as Polestar's web application.
+
+## Run the CLI
+
+Rust 1.85 or newer is required.
+
+```bash
+cp .env.example .env
 ```
 
-### Usage
+Edit `.env` and set at least:
 
-```rust
+```dotenv
+POLESTAR_USERNAME="you@example.com"
+POLESTAR_PASSWORD="your-polestar-password"
+
+# Optional for an account with one vehicle
+POLESTAR_VIN="YOUR_17_CHARACTER_VIN"
+```
+
+`.env` is ignored by Git. Do not commit or paste these credentials into logs,
+issues, or chat.
+
+Verify the public auth endpoint and see which local values are configured:
+
+```bash
+cargo run --features cli --bin polestar -- doctor
+```
+
+Fetch telemetry:
+
+```bash
+cargo run --features cli --bin polestar -- telemetry
+```
+
+Fetch machine-readable telemetry:
+
+```bash
+cargo run --features cli --bin polestar -- telemetry --json
+```
+
+List account vehicles (full VINs are emitted only with `--json`):
+
+```bash
+cargo run --features cli --bin polestar -- vehicles
+cargo run --features cli --bin polestar -- vehicles --json
+```
+
+The telemetry command is the default, so this is equivalent:
+
+```bash
+cargo run --features cli --bin polestar
+```
+
+## Use the library
+
+```rust,no_run
 use polestar_api::PolestarClient;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create a client with your Polestar account credentials
-    let client = PolestarClient::new("your_email@example.com", "your_password")?;
+    let client = PolestarClient::new(
+        std::env::var("POLESTAR_USERNAME")?,
+        std::env::var("POLESTAR_PASSWORD")?,
+    )?;
 
-    // Fetch vehicle telemetry
-    let telemetry = client.get_telemetry("YOUR_VIN").await?;
+    let vehicles = client.get_vehicles().await?;
+    let vehicle = vehicles.first().ok_or("no vehicle in account")?;
+    let telemetry = client.get_telemetry(&vehicle.vin).await?;
 
-    println!("Battery: {}%",
-        telemetry.battery.charge_level_percentage.unwrap_or(0));
+    if let Some(charge) = telemetry
+        .battery
+        .and_then(|battery| battery.charge_level_percentage)
+    {
+        println!("Battery: {charge}%");
+    }
 
     Ok(())
 }
 ```
 
-## Authentication
-
-The client authenticates using your Polestar account credentials (username and password). The library handles the web-based login flow to obtain access tokens from the Polestar authentication service.
-
-> **Note**: Authentication implementation is currently in progress. The client accepts username and password credentials which will be used to authenticate with the Polestar API. See the [pypolestar reference implementation](https://github.com/pypolestar/polestar-api) for examples of the authentication flow.
-
-**Security**: Never commit credentials to version control. Use environment variables:
-
-```bash
-export POLESTAR_USERNAME="your_email@example.com"
-export POLESTAR_PASSWORD="your_password"
-export POLESTAR_VIN="your_vin"
-```
-
-**Redaction helper**: The crate includes a small redaction utility you can run on any log message to mask emails, passwords, VINs, and access/refresh tokens before they hit logs:
-
-```rust
-use polestar_api::redact::redact_str;
-
-let message = format!("Refreshing token for {}", username);
-log::warn!("{}", redact_str(&message));
-```
-
-## Examples
-
-### Get Battery Status
-
-```rust
-let client = PolestarClient::new("user@example.com", "password")?;
-let telemetry = client.get_telemetry("VIN").await?;
-
-if let Some(charge) = telemetry.battery.charge_level_percentage {
-    println!("Battery: {}%", charge);
-}
-
-if let Some(status) = &telemetry.battery.charge_status {
-    println!("Status: {}", status);
-}
-```
-
-**Example Output:**
-```
-Battery: 69%
-Status: CHARGING_STATUS_IDLE
-Time to Full: 0 minutes
-Estimated Range: 230 km
-Total Distance: 67712.9 km
-```
-
-### Get Vehicle Information
-
-```rust
-let client = PolestarClient::new("user@example.com", "password")?;
-let vehicle = client.get_vehicle("VIN").await?;
-
-println!("Model: {}", vehicle.content.model.name.unwrap_or_default());
-println!("Market: {}", vehicle.market.unwrap_or_default());
-```
-
-See the [`examples/`](examples/) directory for more complete examples.
-
-## Documentation
-
-- [Implementation Plan](PLAN.md) - Development roadmap
-- [Architecture](ARCHITECTURE.md) - Technical design and decisions
-- [Test Harness](TEST_HARNESS.md) - Testing strategy and tools
-- [API Reference](resources/Polestar-API-Reference.md) - Polestar API documentation
-
-## Testing
-
-Run all tests:
-```bash
-cargo test
-```
-
-Run integration tests (requires credentials):
-```bash
-export POLESTAR_USERNAME="your_email@example.com"
-export POLESTAR_PASSWORD="your_password"
-export POLESTAR_VIN="your_vin"
-cargo test --test integration_tests
-```
-
-Use the test harness CLI:
-```bash
-cargo run --example test_harness --features cli -- \
-  --username "$POLESTAR_USERNAME" \
-  --password "$POLESTAR_PASSWORD" \
-  --vin "$POLESTAR_VIN" \
-  --endpoint all
-```
+Tokens are kept in memory, refreshed before expiry, and are not persisted by the
+crate. The client serializes concurrent login/refresh attempts so cloned clients
+can safely share one authentication state.
 
 ## Development
 
-The repository includes a git pre-commit hook that automatically strips trailing whitespace from all staged files. The hook is located at `.git/hooks/pre-commit` and runs automatically on each commit.
+Run the complete local gate:
 
-## Development Status
+```bash
+cargo fmt --all -- --check
+cargo test --all-features --all-targets
+cargo clippy --all-features --all-targets -- -D warnings
+cargo doc --all-features --no-deps
+```
 
-**Current Version**: 0.1.0 (Planning Phase)
+Live telemetry cannot be tested without a real Polestar account. The unit tests
+cover current response shapes, including null telemetry groups and multiple VINs.
 
-This project is in active development. The current release includes:
-- ✅ Comprehensive planning documentation
-- ✅ Architecture design
-- ✅ Test harness specification
-- 🚧 Implementation in progress
+Additional project notes are under [`docs/`](docs/), and the captured historical
+API reference is in [`resources/Polestar-API-Reference.md`](resources/Polestar-API-Reference.md).
 
-See [PLAN.md](PLAN.md) for the complete roadmap.
+## Compatibility
 
-## Contributing
-
-Contributions are welcome! Please open an issue or pull request on GitHub. Contribution guidelines will be added in a future release.
+The current GraphQL fields and OIDC flow are aligned with the maintained
+[`pypolestar`](https://github.com/pypolestar/pypolestar) implementation. The old
+verbose vehicle query is no longer considered stable; `get_vehicle_verbose()` is
+retained as a compatibility method and now returns the supported vehicle summary.
 
 ## License
 
-Dual-licensed under either of:
-
-- Apache License, Version 2.0 ([apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0))
-- MIT license ([opensource.org/licenses/MIT](http://opensource.org/licenses/MIT))
-
-at your option.
-
-## Disclaimer
-
-This is an unofficial, community-maintained wrapper for the Polestar API. It is not affiliated with, endorsed by, or supported by Polestar or Volvo Car Corporation.
-
-## Acknowledgments
-
-- [pypolestar](https://github.com/pypolestar/polestar-api) - Python reference implementation
-- The Rust community for excellent async tooling
-
-## References
-
-- [Polestar Official Site](https://www.polestar.com)
-- [GraphQL Specification](https://spec.graphql.org/)
+Licensed under either the MIT License or Apache License 2.0, at your option.

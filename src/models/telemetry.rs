@@ -3,23 +3,26 @@
 use serde::{Deserialize, Serialize};
 
 /// Complete telemetry response from the API.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct TelemetryResponse {
     /// Battery data array.
-    pub battery: Vec<Battery>,
+    #[serde(default)]
+    pub battery: Vec<Option<Battery>>,
     /// Health data array.
-    pub health: Vec<Health>,
+    #[serde(default)]
+    pub health: Vec<Option<Health>>,
     /// Odometer data array.
+    #[serde(default)]
     pub odometer: Vec<Option<Odometer>>,
 }
 
 /// Flattened telemetry data for single vehicle.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Telemetry {
     /// Battery and charging information.
-    pub battery: Battery,
+    pub battery: Option<Battery>,
     /// Vehicle health and status.
-    pub health: Health,
+    pub health: Option<Health>,
     /// Odometer information.
     pub odometer: Option<Odometer>,
 }
@@ -35,7 +38,7 @@ pub struct Battery {
     #[serde(rename = "batteryChargeLevelPercentage")]
     pub charge_level_percentage: Option<i64>,
     /// Current charging status.
-    #[serde(rename = "chargingStatus")]
+    #[serde(rename = "chargingStatusV2", alias = "chargingStatus")]
     pub charge_status: Option<String>,
     /// Estimated time to full charge in minutes.
     #[serde(rename = "estimatedChargingTimeToFullMinutes")]
@@ -44,7 +47,7 @@ pub struct Battery {
     #[serde(rename = "estimatedDistanceToEmptyKm")]
     pub estimated_distance_to_empty_km: Option<i64>,
     /// Estimated distance to empty in miles.
-    #[serde(rename = "estimatedDistanceToEmptyMiles")]
+    #[serde(default, rename = "estimatedDistanceToEmptyMiles")]
     pub estimated_distance_to_empty_miles: Option<i64>,
 }
 
@@ -94,4 +97,54 @@ pub struct Timestamp {
     pub seconds: String,
     /// Nanoseconds.
     pub nanos: i64,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn deserializes_current_response_with_null_health() {
+        let response: TelemetryResponse = serde_json::from_value(serde_json::json!({
+            "health": [null],
+            "battery": [{
+                "vin": "YSMYKEAE7RB000000",
+                "batteryChargeLevelPercentage": 79,
+                "chargingStatusV2": "CHARGING_STATUS_V2_IDLE",
+                "estimatedChargingTimeToFullMinutes": 0,
+                "estimatedDistanceToEmptyKm": 390,
+                "timestamp": { "seconds": "1747822967", "nanos": 996856149 }
+            }],
+            "odometer": [{
+                "vin": "YSMYKEAE7RB000000",
+                "odometerMeters": 11131000,
+                "timestamp": { "seconds": "1747765507", "nanos": 288842041 }
+            }]
+        }))
+        .unwrap();
+
+        assert!(response.health[0].is_none());
+        assert_eq!(
+            response.battery[0]
+                .as_ref()
+                .and_then(|battery| battery.charge_level_percentage),
+            Some(79)
+        );
+    }
+
+    #[test]
+    fn accepts_legacy_charging_status_name() {
+        let battery: Battery = serde_json::from_value(serde_json::json!({
+            "vin": "AAAAAAAA1AA111111",
+            "batteryChargeLevelPercentage": 68,
+            "chargingStatus": "CHARGING_STATUS_IDLE",
+            "timestamp": { "seconds": "1738053874", "nanos": 0 }
+        }))
+        .unwrap();
+
+        assert_eq!(
+            battery.charge_status.as_deref(),
+            Some("CHARGING_STATUS_IDLE")
+        );
+    }
 }

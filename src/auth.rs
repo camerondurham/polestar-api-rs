@@ -2,61 +2,80 @@
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use chrono::{DateTime, Duration, Utc};
-use rand::Rng;
-use serde::{Deserialize, Serialize};
+use reqwest::header::LOCATION;
+use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 
 use crate::error::{PolestarError, Result};
 use crate::redact::redact_str;
 
-// Auth constants
+/// Base URL for Polestar's OIDC provider.
 pub const OIDC_PROVIDER_BASE_URL: &str = "https://polestarid.eu.polestar.com";
+/// Public client identifier used by the Polestar web application.
 pub const OIDC_CLIENT_ID: &str = "l3oopkc_10";
+/// OAuth callback used by the Polestar web application.
 pub const OIDC_REDIRECT_URI: &str = "https://www.polestar.com/sign-in-callback";
+/// OAuth scopes required by the vehicle API.
 pub const OIDC_SCOPE: &str = "openid profile email customer:attributes";
+/// Refresh an access token this many seconds before it expires at most.
 pub const TOKEN_REFRESH_WINDOW_SECS: i64 = 300;
 
 /// OIDC configuration from .well-known/openid-configuration
 #[derive(Debug, Clone, Deserialize)]
 pub struct OidcConfig {
+    /// Expected token issuer.
     pub issuer: String,
+    /// OAuth token exchange endpoint.
     pub token_endpoint: String,
+    /// OAuth authorization endpoint.
     pub authorization_endpoint: String,
 }
 
 /// Token response from OAuth2 token endpoint
 #[derive(Debug, Clone, Deserialize)]
 pub struct TokenResponse {
+    /// Short-lived bearer token used for API requests.
     pub access_token: String,
+    /// Long-lived token used to refresh the access token.
     pub refresh_token: String,
+    /// Access-token lifetime in seconds.
     pub expires_in: i64,
 }
 
 /// Token state with expiry tracking
 #[derive(Debug, Clone)]
 pub struct TokenState {
+    /// Short-lived bearer token used for API requests.
     pub access_token: String,
+    /// Long-lived token used to refresh the access token.
     pub refresh_token: String,
+    /// Absolute access-token expiry time.
     pub expires_at: DateTime<Utc>,
+    /// Original access-token lifetime in seconds.
+    pub token_lifetime_secs: i64,
 }
 
 impl TokenState {
+    /// Build token state and calculate its absolute expiry time.
     pub fn from_response(response: TokenResponse) -> Self {
         Self {
             access_token: response.access_token,
             refresh_token: response.refresh_token,
             expires_at: Utc::now() + Duration::seconds(response.expires_in),
+            token_lifetime_secs: response.expires_in,
         }
     }
 
+    /// Return whether the access token has not expired.
     pub fn is_valid(&self) -> bool {
         Utc::now() < self.expires_at
     }
 
-    pub fn needs_refresh(&self, token_lifetime_secs: i64) -> bool {
-        let refresh_window = std::cmp::min(token_lifetime_secs / 2, TOKEN_REFRESH_WINDOW_SECS);
+    /// Return whether the access token is within its proactive refresh window.
+    pub fn needs_refresh(&self) -> bool {
+        let refresh_window = std::cmp::min(self.token_lifetime_secs / 2, TOKEN_REFRESH_WINDOW_SECS);
         let expires_in = (self.expires_at - Utc::now()).num_seconds();
         expires_in < refresh_window
     }
@@ -64,14 +83,13 @@ impl TokenState {
 
 /// Authentication state manager
 pub struct AuthState {
-    /// Username for authentication
-    pub username: String,
-    /// Password for authentication
-    pub password: String,
+    username: String,
+    password: String,
     /// Current token state
     pub token: Arc<RwLock<Option<TokenState>>>,
     /// OIDC configuration
     pub oidc_config: Arc<RwLock<Option<OidcConfig>>>,
+    auth_lock: Mutex<()>,
 }
 
 impl AuthState {
@@ -82,6 +100,7 @@ impl AuthState {
             password,
             token: Arc::new(RwLock::new(None)),
             oidc_config: Arc::new(RwLock::new(None)),
+            auth_lock: Mutex::new(()),
         }
     }
 
@@ -96,11 +115,11 @@ impl AuthState {
         }
 
         // Fetch from well-known endpoint
-        let url = format!("{}/.well-known/openid-configuration", OIDC_PROVIDER_BASE_URL);
-        let response = client
-            .get(&url)
-            .send()
-            .await?;
+        let url = format!(
+            "{}/.well-known/openid-configuration",
+            OIDC_PROVIDER_BASE_URL
+        );
+        let response = client.get(&url).send().await?;
 
         if !response.status().is_success() {
             return Err(PolestarError::OidcConfigError(format!(
@@ -164,7 +183,9 @@ impl AuthState {
             }
         }
 
-        Err(PolestarError::AuthError("Resume path not found in response".to_string()))
+        Err(PolestarError::AuthError(
+            "Resume path not found in response".to_string(),
+        ))
     }
 
     /// Get authorization code by posting credentials
@@ -174,11 +195,17 @@ impl AuthState {
         client: &reqwest::Client,
     ) -> Result<(String, String)> {
         let config = self.get_oidc_config(client).await?;
+        // Login depends on inspecting the provider's redirect responses. Use a
+        // dedicated client so callers do not need to disable redirects on
+        // their general-purpose HTTP client.
+        let authorization_client = build_authorization_client()?;
         let state = generate_state();
         let code_verifier = generate_code_verifier();
         let code_challenge = generate_code_challenge(&code_verifier);
 
-        let resume_path = self.get_resume_path(client, &config, &state, &code_challenge).await?;
+        let resume_path = self
+            .get_resume_path(&authorization_client, &config, &state, &code_challenge)
+            .await?;
         let resume_url = format!("{}{}", OIDC_PROVIDER_BASE_URL, resume_path);
 
         // Build query params for resume URL
@@ -199,56 +226,67 @@ impl AuthState {
             ("pf.pass", self.password.as_str()),
         ];
 
-        let response = client
+        let mut response = authorization_client
             .post(&resume_url)
             .query(&params)
             .form(&form)
             .send()
             .await?;
 
-        let status = response.status();
-
-        // Check for auth error (4xx without redirect)
-        if status.is_client_error() && !status.is_redirection() {
+        if !response.status().is_redirection() {
+            let status = response.status();
             let text = response.text().await?;
             if text.contains(r#"authMessage: "ERR001""#) {
                 return Err(PolestarError::InvalidCredentials);
             }
-            return Err(PolestarError::AuthError(format!("Authentication failed: {}", status)));
+            return Err(PolestarError::AuthError(format!(
+                "Authentication failed: expected redirect, received {status}"
+            )));
         }
 
-        // Handle redirects (302/303) - reqwest follows them automatically
-        // So we need to check the final URL for the code parameter
-        let final_url = response.url().clone();
+        let mut redirect_url = redirect_target(&response)?;
+        let mut code = query_value(&redirect_url, "code");
 
-        // Check for code parameter in final URL
-        if let Some(code) = final_url.query_pairs().find(|(k, _)| k == "code").map(|(_, v)| v.to_string()) {
-            return Ok((code, code_verifier));
-        }
+        if code.is_none() {
+            let uid = query_value(&redirect_url, "uid").ok_or_else(|| {
+                PolestarError::AuthError(
+                    "Authentication redirect did not contain a code or confirmation id".to_string(),
+                )
+            })?;
+            let confirmation_form = [("pf.submit", "true"), ("subject", uid.as_str())];
 
-        // Check for uid (T&C acceptance needed)
-        if let Some(uid) = final_url.query_pairs().find(|(k, _)| k == "uid").map(|(_, v)| v.to_string()) {
-            // Submit T&C acceptance
-            let form = [
-                ("pf.submit", "true"),
-                ("subject", &uid),
-            ];
-
-            let response = client
+            response = authorization_client
                 .post(&resume_url)
                 .query(&params)
-                .form(&form)
+                .form(&confirmation_form)
                 .send()
                 .await?;
 
-            let final_url = response.url().clone();
-
-            if let Some(code) = final_url.query_pairs().find(|(k, _)| k == "code").map(|(_, v)| v.to_string()) {
-                return Ok((code, code_verifier));
+            if !response.status().is_redirection() {
+                return Err(PolestarError::AuthError(format!(
+                    "Terms confirmation failed: expected redirect, received {}",
+                    response.status()
+                )));
             }
+
+            redirect_url = redirect_target(&response)?;
+            code = query_value(&redirect_url, "code");
         }
 
-        Err(PolestarError::AuthError("No authorization code found".to_string()))
+        let code = code.ok_or_else(|| {
+            PolestarError::AuthError("No authorization code found after confirmation".to_string())
+        })?;
+
+        // Complete the browser callback so the provider can finalize its session cookies.
+        let callback_response = authorization_client.get(redirect_url).send().await?;
+        if !callback_response.status().is_success() {
+            return Err(PolestarError::AuthError(format!(
+                "Authentication callback failed: {}",
+                callback_response.status()
+            )));
+        }
+
+        Ok((code, code_verifier))
     }
 
     /// Exchange authorization code for access token
@@ -278,7 +316,7 @@ impl AuthState {
             let text = response.text().await?;
             return Err(PolestarError::AuthError(format!(
                 "Token exchange failed: {}",
-                text
+                redact_str(&text)
             )));
         }
 
@@ -330,7 +368,7 @@ impl AuthState {
 
             return Err(PolestarError::AuthError(format!(
                 "Token refresh failed: {}",
-                text
+                redact_str(&text)
             )));
         }
 
@@ -355,40 +393,43 @@ impl AuthState {
     /// Check if token needs refresh
     pub async fn needs_token_refresh(&self) -> bool {
         let token = self.token.read().await;
-        if let Some(t) = token.as_ref() {
-            // Calculate original lifetime from current expiry
-            let lifetime = (t.expires_at - Utc::now()).num_seconds() + 3600; // assume 1hr default
-            t.needs_refresh(lifetime)
-        } else {
-            true // No token means we need one
-        }
+        token
+            .as_ref()
+            .map(TokenState::needs_refresh)
+            .unwrap_or(true)
     }
 
     /// Get valid access token, refreshing if needed
     pub async fn get_valid_token(&self, client: &reqwest::Client) -> Result<String> {
-        // Check if we have a valid token
         if self.is_token_valid().await && !self.needs_token_refresh().await {
             let token = self.token.read().await;
-            return Ok(token.as_ref().unwrap().access_token.clone());
+            if let Some(token) = token.as_ref() {
+                return Ok(token.access_token.clone());
+            }
         }
 
-        // Try to refresh if we have a refresh token
+        // Only one task should refresh or perform the login flow at a time.
+        let _auth_guard = self.auth_lock.lock().await;
+
+        // Another task may have refreshed the token while this task waited.
+        if self.is_token_valid().await && !self.needs_token_refresh().await {
+            let token = self.token.read().await;
+            if let Some(token) = token.as_ref() {
+                return Ok(token.access_token.clone());
+            }
+        }
+
         {
             let token = self.token.read().await;
             if token.is_some() {
-                drop(token); // Release read lock before refresh
+                drop(token);
                 match self.refresh_token(client).await {
                     Ok(state) => return Ok(state.access_token),
                     Err(PolestarError::TokenExpired) => {
-                        // Token expired, clear it and fall through to full auth
                         let mut token = self.token.write().await;
                         *token = None;
                     }
-                    Err(e) => {
-                        // Other error, try full auth
-                        let message = format!("Token refresh failed: {}, attempting full auth", e);
-                        eprintln!("{}", redact_str(&message));
-                    }
+                    Err(_) => {}
                 }
             }
         }
@@ -411,6 +452,9 @@ impl AuthState {
                     }
                 }
                 Err(e) => {
+                    if matches!(e, PolestarError::InvalidCredentials) {
+                        return Err(e);
+                    }
                     last_error = Some(e);
                     if attempt < max_retries - 1 {
                         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
@@ -419,15 +463,44 @@ impl AuthState {
             }
         }
 
-        Err(last_error.unwrap_or_else(|| PolestarError::AuthError("Authentication failed".to_string())))
+        Err(last_error
+            .unwrap_or_else(|| PolestarError::AuthError("Authentication failed".to_string())))
     }
+}
+
+fn build_authorization_client() -> Result<reqwest::Client> {
+    Ok(reqwest::Client::builder()
+        .cookie_store(true)
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(std::time::Duration::from_secs(30))
+        .user_agent(concat!("polestar-api-rs/", env!("CARGO_PKG_VERSION")))
+        .build()?)
+}
+
+fn redirect_target(response: &reqwest::Response) -> Result<reqwest::Url> {
+    let location = response
+        .headers()
+        .get(LOCATION)
+        .ok_or_else(|| PolestarError::AuthError("Redirect missing Location header".to_string()))?
+        .to_str()
+        .map_err(|_| PolestarError::AuthError("Redirect Location is not valid text".to_string()))?;
+
+    response.url().join(location).map_err(|error| {
+        PolestarError::AuthError(format!("Invalid authentication redirect URL: {error}"))
+    })
+}
+
+fn query_value(url: &reqwest::Url, name: &str) -> Option<String> {
+    url.query_pairs()
+        .find(|(key, _)| key == name)
+        .map(|(_, value)| value.into_owned())
 }
 
 // PKCE helper functions
 
 /// Generate random code verifier for PKCE
 pub fn generate_code_verifier() -> String {
-    let random_bytes: [u8; 32] = rand::thread_rng().gen();
+    let random_bytes: [u8; 32] = rand::random();
     URL_SAFE_NO_PAD.encode(random_bytes)
 }
 
@@ -441,13 +514,16 @@ pub fn generate_code_challenge(verifier: &str) -> String {
 
 /// Generate random state parameter
 pub fn generate_state() -> String {
-    let random_bytes: [u8; 32] = rand::thread_rng().gen();
+    let random_bytes: [u8; 32] = rand::random();
     URL_SAFE_NO_PAD.encode(random_bytes)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+    use std::thread;
 
     #[test]
     fn test_generate_code_verifier() {
@@ -489,40 +565,56 @@ mod tests {
             access_token: "test".to_string(),
             refresh_token: "test".to_string(),
             expires_at: Utc::now() + Duration::seconds(10),
+            token_lifetime_secs: 600,
         };
         // Should need refresh when expires_in < refresh_window
-        assert!(state.needs_refresh(600)); // window=300, expires_in=10
+        assert!(state.needs_refresh()); // window=300, expires_in=10
 
         // Fresh token shouldn't need refresh
         state.expires_at = Utc::now() + Duration::seconds(3600);
-        assert!(!state.needs_refresh(3600)); // window=300, expires_in=3600
+        assert!(!state.needs_refresh()); // window=300, expires_in=3600
     }
 
-    #[tokio::test]
-    async fn test_get_oidc_config() {
-        use wiremock::{MockServer, Mock, ResponseTemplate};
-        use wiremock::matchers::{method, path};
-
-        let mock_server = MockServer::start().await;
-
-        let config_json = serde_json::json!({
+    #[test]
+    fn test_oidc_config_deserialization() {
+        let config: OidcConfig = serde_json::from_value(serde_json::json!({
             "issuer": "https://test.polestar.com",
             "token_endpoint": "https://test.polestar.com/token",
             "authorization_endpoint": "https://test.polestar.com/authorize"
+        }))
+        .unwrap();
+
+        assert_eq!(config.issuer, "https://test.polestar.com");
+        assert_eq!(config.token_endpoint, "https://test.polestar.com/token");
+    }
+
+    #[tokio::test]
+    async fn authorization_client_preserves_redirect_response() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0_u8; 1024];
+            let _ = stream.read(&mut request).unwrap();
+            stream
+                .write_all(
+                    b"HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:9/callback\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                )
+                .unwrap();
         });
 
-        Mock::given(method("GET"))
-            .and(path("/.well-known/openid-configuration"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(&config_json))
-            .mount(&mock_server)
-            .await;
+        let response = build_authorization_client()
+            .unwrap()
+            .get(format!("http://{address}/login"))
+            .send()
+            .await
+            .unwrap();
 
-        // Override base URL for test
-        let auth = AuthState::new("user".to_string(), "pass".to_string());
-        let client = reqwest::Client::new();
-
-        // Note: This test would need to mock OIDC_PROVIDER_BASE_URL
-        // For now, just verify the struct works
-        assert_eq!(auth.username, "user");
+        server.join().unwrap();
+        assert!(response.status().is_redirection());
+        assert_eq!(
+            response.headers().get(LOCATION).unwrap(),
+            "http://127.0.0.1:9/callback"
+        );
     }
 }

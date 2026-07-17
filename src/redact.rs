@@ -22,8 +22,7 @@ fn vin_re() -> &'static Regex {
 fn bearer_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
-        Regex::new(r"(?i)\b(Bearer)\s+[A-Za-z0-9._\-~+/]+=*")
-            .expect("bearer regex should compile")
+        Regex::new(r"(?i)\b(Bearer)\s+[A-Za-z0-9._\-~+/]+=*").expect("bearer regex should compile")
     })
 }
 

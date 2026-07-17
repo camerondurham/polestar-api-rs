@@ -37,6 +37,10 @@ pub enum PolestarError {
     #[error("Invalid VIN: {0}")]
     InvalidVin(String),
 
+    /// The API returned no telemetry samples for the requested VIN.
+    #[error("No telemetry is currently available for VIN {0}")]
+    NoTelemetry(String),
+
     /// Rate limit exceeded (HTTP 429).
     #[error("Rate limit exceeded")]
     RateLimitExceeded,

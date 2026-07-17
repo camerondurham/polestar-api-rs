@@ -1,12 +1,8 @@
 //! CLI test harness for the Polestar API.
 //!
-//! Usage:
+//! Usage (after setting credentials and a VIN in `.env`):
 //! ```bash
-//! cargo run --example test_harness --features cli -- \
-//!   --username "your_email@example.com" \
-//!   --password "your_password" \
-//!   --vin "YOUR_VIN" \
-//!   --endpoint telemetry
+//! cargo run --example test_harness --features cli -- --endpoint telemetry
 //! ```
 
 #[cfg(feature = "cli")]
@@ -22,15 +18,11 @@ use std::time::Instant;
 #[command(about = "Test harness for Polestar API")]
 struct Args {
     /// Polestar account username (email)
-    #[arg(short, long, env = "POLESTAR_USERNAME")]
+    #[arg(short, long, env = "POLESTAR_USERNAME", hide_env_values = true)]
     username: String,
 
-    /// Polestar account password
-    #[arg(short, long, env = "POLESTAR_PASSWORD")]
-    password: String,
-
     /// Vehicle VIN
-    #[arg(short, long, env = "POLESTAR_VIN")]
+    #[arg(short, long, env = "POLESTAR_VIN", hide_env_values = true)]
     vin: String,
 
     /// Endpoint to test
@@ -57,10 +49,16 @@ enum Endpoint {
 #[cfg(feature = "cli")]
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    dotenvy::dotenv().ok();
     env_logger::init();
     let args = Args::parse();
+    let password = std::env::var("POLESTAR_PASSWORD").map_err(|_| {
+        std::io::Error::other(
+            "POLESTAR_PASSWORD is missing; set it in the environment or a local .env file",
+        )
+    })?;
 
-    let client = PolestarClient::new(args.username, args.password)?;
+    let client = PolestarClient::new(args.username, password)?;
 
     match args.endpoint {
         Endpoint::Telemetry => {

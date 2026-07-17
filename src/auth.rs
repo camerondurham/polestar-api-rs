@@ -5,6 +5,7 @@ use chrono::{DateTime, Duration, Utc};
 use reqwest::header::LOCATION;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
+use std::fmt;
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 
@@ -34,27 +35,60 @@ pub struct OidcConfig {
 }
 
 /// Token response from OAuth2 token endpoint
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Clone, Deserialize)]
 pub struct TokenResponse {
     /// Short-lived bearer token used for API requests.
     pub access_token: String,
-    /// Long-lived token used to refresh the access token.
-    pub refresh_token: String,
+    /// Long-lived token used to refresh the access token, when one is issued.
+    ///
+    /// OAuth servers are allowed to omit this field from refresh responses. In
+    /// that case the previously issued refresh token remains in use.
+    #[serde(default)]
+    pub refresh_token: Option<String>,
     /// Access-token lifetime in seconds.
     pub expires_in: i64,
 }
 
+impl fmt::Debug for TokenResponse {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("TokenResponse")
+            .field("access_token", &"[REDACTED]")
+            .field(
+                "refresh_token",
+                &self.refresh_token.as_ref().map(|_| "[REDACTED]"),
+            )
+            .field("expires_in", &self.expires_in)
+            .finish()
+    }
+}
+
 /// Token state with expiry tracking
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct TokenState {
     /// Short-lived bearer token used for API requests.
     pub access_token: String,
-    /// Long-lived token used to refresh the access token.
-    pub refresh_token: String,
+    /// Long-lived token used to refresh the access token, when one was issued.
+    pub refresh_token: Option<String>,
     /// Absolute access-token expiry time.
     pub expires_at: DateTime<Utc>,
     /// Original access-token lifetime in seconds.
     pub token_lifetime_secs: i64,
+}
+
+impl fmt::Debug for TokenState {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("TokenState")
+            .field("access_token", &"[REDACTED]")
+            .field(
+                "refresh_token",
+                &self.refresh_token.as_ref().map(|_| "[REDACTED]"),
+            )
+            .field("expires_at", &self.expires_at)
+            .field("token_lifetime_secs", &self.token_lifetime_secs)
+            .finish()
+    }
 }
 
 impl TokenState {
@@ -245,9 +279,11 @@ impl AuthState {
         }
 
         let mut redirect_url = redirect_target(&response)?;
-        let mut code = query_value(&redirect_url, "code");
-
-        if code.is_none() {
+        let code = if query_value(&redirect_url, "code").is_some()
+            || query_value(&redirect_url, "error").is_some()
+        {
+            authorization_code_from_redirect(&redirect_url, &state)?
+        } else {
             let uid = query_value(&redirect_url, "uid").ok_or_else(|| {
                 PolestarError::AuthError(
                     "Authentication redirect did not contain a code or confirmation id".to_string(),
@@ -270,12 +306,8 @@ impl AuthState {
             }
 
             redirect_url = redirect_target(&response)?;
-            code = query_value(&redirect_url, "code");
-        }
-
-        let code = code.ok_or_else(|| {
-            PolestarError::AuthError("No authorization code found after confirmation".to_string())
-        })?;
+            authorization_code_from_redirect(&redirect_url, &state)?
+        };
 
         // Complete the browser callback so the provider can finalize its session cookies.
         let callback_response = authorization_client.get(redirect_url).send().await?;
@@ -341,7 +373,7 @@ impl AuthState {
             let token = self.token.read().await;
             token
                 .as_ref()
-                .map(|t| t.refresh_token.clone())
+                .and_then(|token| token.refresh_token.clone())
                 .ok_or_else(|| PolestarError::AuthError("No refresh token available".to_string()))?
         };
 
@@ -372,7 +404,10 @@ impl AuthState {
             )));
         }
 
-        let token_response: TokenResponse = response.json().await?;
+        let mut token_response: TokenResponse = response.json().await?;
+        if token_response.refresh_token.is_none() {
+            token_response.refresh_token = Some(refresh_token);
+        }
         let token_state = TokenState::from_response(token_response);
 
         // Update stored token
@@ -382,6 +417,23 @@ impl AuthState {
         }
 
         Ok(token_state)
+    }
+
+    /// Mark a rejected access token as expired without discarding its refresh token.
+    ///
+    /// The comparison prevents a delayed 401 response from invalidating a newer
+    /// token installed by another task.
+    pub(crate) async fn invalidate_access_token(&self, rejected_access_token: &str) -> bool {
+        let mut token = self.token.write().await;
+        let Some(token) = token.as_mut() else {
+            return false;
+        };
+        if token.access_token != rejected_access_token {
+            return false;
+        }
+
+        token.expires_at = Utc::now() - Duration::seconds(1);
+        true
     }
 
     /// Check if current token is valid
@@ -419,18 +471,20 @@ impl AuthState {
             }
         }
 
-        {
-            let token = self.token.read().await;
-            if token.is_some() {
-                drop(token);
-                match self.refresh_token(client).await {
-                    Ok(state) => return Ok(state.access_token),
-                    Err(PolestarError::TokenExpired) => {
-                        let mut token = self.token.write().await;
-                        *token = None;
-                    }
-                    Err(_) => {}
+        let can_refresh = self
+            .token
+            .read()
+            .await
+            .as_ref()
+            .is_some_and(|token| token.refresh_token.is_some());
+        if can_refresh {
+            match self.refresh_token(client).await {
+                Ok(state) => return Ok(state.access_token),
+                Err(PolestarError::TokenExpired) => {
+                    let mut token = self.token.write().await;
+                    *token = None;
                 }
+                Err(_) => {}
             }
         }
 
@@ -496,6 +550,42 @@ fn query_value(url: &reqwest::Url, name: &str) -> Option<String> {
         .map(|(_, value)| value.into_owned())
 }
 
+fn authorization_code_from_redirect(url: &reqwest::Url, expected_state: &str) -> Result<String> {
+    let expected_url = reqwest::Url::parse(OIDC_REDIRECT_URI)
+        .map_err(|error| PolestarError::AuthError(format!("Invalid callback URL: {error}")))?;
+    let is_expected_callback = url.scheme() == expected_url.scheme()
+        && url.host_str() == expected_url.host_str()
+        && url.port_or_known_default() == expected_url.port_or_known_default()
+        && url.path() == expected_url.path()
+        && url.username().is_empty()
+        && url.password().is_none();
+    if !is_expected_callback {
+        return Err(PolestarError::AuthError(
+            "Authorization response used an unexpected callback URL".to_string(),
+        ));
+    }
+
+    let returned_state = query_value(url, "state").ok_or_else(|| {
+        PolestarError::AuthError("Authorization response did not contain state".to_string())
+    })?;
+    if returned_state != expected_state {
+        return Err(PolestarError::AuthError(
+            "Authorization response state did not match the request".to_string(),
+        ));
+    }
+
+    if let Some(error) = query_value(url, "error") {
+        return Err(PolestarError::AuthError(format!(
+            "Authorization server returned {}",
+            redact_str(&error)
+        )));
+    }
+
+    query_value(url, "code").ok_or_else(|| {
+        PolestarError::AuthError("Authorization response did not contain a code".to_string())
+    })
+}
+
 // PKCE helper functions
 
 /// Generate random code verifier for PKCE
@@ -551,7 +641,7 @@ mod tests {
     fn test_token_state_is_valid() {
         let response = TokenResponse {
             access_token: "test_token".to_string(),
-            refresh_token: "test_refresh".to_string(),
+            refresh_token: Some("test_refresh".to_string()),
             expires_in: 3600,
         };
         let state = TokenState::from_response(response);
@@ -563,7 +653,7 @@ mod tests {
         // Create expired token
         let mut state = TokenState {
             access_token: "test".to_string(),
-            refresh_token: "test".to_string(),
+            refresh_token: Some("test".to_string()),
             expires_at: Utc::now() + Duration::seconds(10),
             token_lifetime_secs: 600,
         };
@@ -586,6 +676,100 @@ mod tests {
 
         assert_eq!(config.issuer, "https://test.polestar.com");
         assert_eq!(config.token_endpoint, "https://test.polestar.com/token");
+    }
+
+    #[test]
+    fn token_response_accepts_an_omitted_refresh_token() {
+        let response: TokenResponse = serde_json::from_value(serde_json::json!({
+            "access_token": "new-access",
+            "expires_in": 3600
+        }))
+        .unwrap();
+
+        assert_eq!(response.access_token, "new-access");
+        assert!(response.refresh_token.is_none());
+    }
+
+    #[test]
+    fn token_debug_output_redacts_credentials() {
+        let response = TokenResponse {
+            access_token: "secret-access".to_string(),
+            refresh_token: Some("secret-refresh".to_string()),
+            expires_in: 3600,
+        };
+        let state = TokenState::from_response(response.clone());
+
+        let response_debug = format!("{response:?}");
+        let state_debug = format!("{state:?}");
+        for output in [&response_debug, &state_debug] {
+            assert!(!output.contains("secret-access"));
+            assert!(!output.contains("secret-refresh"));
+            assert!(output.contains("[REDACTED]"));
+        }
+    }
+
+    #[test]
+    fn validates_authorization_callback_and_state() {
+        let url = reqwest::Url::parse(
+            "https://www.polestar.com/sign-in-callback?code=auth-code&state=expected",
+        )
+        .unwrap();
+
+        assert_eq!(
+            authorization_code_from_redirect(&url, "expected").unwrap(),
+            "auth-code"
+        );
+    }
+
+    #[test]
+    fn rejects_missing_or_mismatched_authorization_state() {
+        let missing =
+            reqwest::Url::parse("https://www.polestar.com/sign-in-callback?code=auth-code")
+                .unwrap();
+        let mismatched = reqwest::Url::parse(
+            "https://www.polestar.com/sign-in-callback?code=auth-code&state=wrong",
+        )
+        .unwrap();
+
+        assert!(authorization_code_from_redirect(&missing, "expected").is_err());
+        assert!(authorization_code_from_redirect(&mismatched, "expected").is_err());
+    }
+
+    #[test]
+    fn reports_an_oauth_error_from_the_expected_callback() {
+        let url = reqwest::Url::parse(
+            "https://www.polestar.com/sign-in-callback?error=access_denied&state=expected",
+        )
+        .unwrap();
+
+        let error = authorization_code_from_redirect(&url, "expected").unwrap_err();
+        assert!(error.to_string().contains("access_denied"));
+    }
+
+    #[test]
+    fn rejects_authorization_code_sent_to_an_unexpected_callback() {
+        let url = reqwest::Url::parse(
+            "https://attacker.example/sign-in-callback?code=auth-code&state=expected",
+        )
+        .unwrap();
+
+        assert!(authorization_code_from_redirect(&url, "expected").is_err());
+    }
+
+    #[tokio::test]
+    async fn invalidation_does_not_expire_a_newer_access_token() {
+        let auth = AuthState::new("user".to_string(), "password".to_string());
+        *auth.token.write().await = Some(TokenState {
+            access_token: "new-access".to_string(),
+            refresh_token: Some("refresh".to_string()),
+            expires_at: Utc::now() + Duration::hours(1),
+            token_lifetime_secs: 3600,
+        });
+
+        assert!(!auth.invalidate_access_token("old-access").await);
+        assert!(auth.is_token_valid().await);
+        assert!(auth.invalidate_access_token("new-access").await);
+        assert!(!auth.is_token_valid().await);
     }
 
     #[tokio::test]

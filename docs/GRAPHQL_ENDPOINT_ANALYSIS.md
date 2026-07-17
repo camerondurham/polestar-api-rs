@@ -1,5 +1,9 @@
 # GraphQL Endpoint Analysis
 
+> **Historical analysis:** Endpoint observations below were captured in November
+> 2025 and may no longer match the private upstream schema. The README describes
+> the currently supported queries.
+
 Date: 2025-11-27
 
 ## Summary

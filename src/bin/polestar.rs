@@ -15,10 +15,6 @@ struct Cli {
     #[arg(long, env = "POLESTAR_USERNAME", global = true, hide_env_values = true)]
     username: Option<String>,
 
-    /// Polestar ID password; prefer the POLESTAR_PASSWORD environment variable.
-    #[arg(long, env = "POLESTAR_PASSWORD", global = true, hide_env_values = true)]
-    password: Option<String>,
-
     /// Vehicle VIN. If omitted, the only vehicle in the account is selected.
     #[arg(long, env = "POLESTAR_VIN", global = true, hide_env_values = true)]
     vin: Option<String>,
@@ -78,7 +74,7 @@ fn client_from_cli(cli: &Cli) -> Result<PolestarClient, Box<dyn Error>> {
             "POLESTAR_USERNAME is missing; copy .env.example to .env and add your Polestar ID email",
         )
     })?;
-    let password = cli.password.clone().ok_or_else(|| {
+    let password = std::env::var("POLESTAR_PASSWORD").map_err(|_| {
         io::Error::other(
             "POLESTAR_PASSWORD is missing; copy .env.example to .env and add your Polestar ID password",
         )
@@ -96,7 +92,10 @@ async fn doctor(cli: &Cli) -> Result<(), Box<dyn Error>> {
 
     println!("Polestar auth service: reachable ({})", oidc.issuer);
     println!("POLESTAR_USERNAME: {}", configured(cli.username.as_deref()));
-    println!("POLESTAR_PASSWORD: {}", configured(cli.password.as_deref()));
+    println!(
+        "POLESTAR_PASSWORD: {}",
+        configured(std::env::var("POLESTAR_PASSWORD").ok().as_deref())
+    );
     println!("POLESTAR_VIN: {}", configured(cli.vin.as_deref()));
     println!("VIN is optional when the account contains exactly one vehicle.");
 

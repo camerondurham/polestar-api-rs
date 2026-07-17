@@ -3,13 +3,16 @@
 //! This tool performs GraphQL introspection to discover all available
 //! queries, mutations, and types in the Polestar API.
 
-use polestar_api::{PolestarClient, PolestarError};
+use polestar_api::PolestarError;
 use serde_json::Value;
 use std::env;
 
 const INTROSPECTION_QUERY: &str = r#"
-{
+query IntrospectionQuery {
   __schema {
+    queryType { name }
+    mutationType { name }
+    subscriptionType { name }
     types {
       kind
       name
@@ -21,13 +24,47 @@ const INTROSPECTION_QUERY: &str = r#"
           name
           description
           type {
-            name
             kind
+            name
+            ofType {
+              kind
+              name
+              ofType {
+                kind
+                name
+                ofType {
+                  kind
+                  name
+                  ofType {
+                    kind
+                    name
+                    ofType { kind name }
+                  }
+                }
+              }
+            }
           }
         }
         type {
-          name
           kind
+          name
+          ofType {
+            kind
+            name
+            ofType {
+              kind
+              name
+              ofType {
+                kind
+                name
+                ofType {
+                  kind
+                  name
+                  ofType { kind name }
+                }
+              }
+            }
+          }
         }
       }
     }
@@ -47,14 +84,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Polestar GraphQL API Introspection Tool");
     println!("==========================================\n");
 
-    // Create client
     println!("Authenticating with Polestar API...");
-    let client = PolestarClient::new(&username, &password)?;
-
-    // Perform introspection
     println!("Performing GraphQL introspection...\n");
 
-    match introspect_api(&client).await {
+    match introspect_api(username, password).await {
         Ok(schema) => {
             analyze_schema(&schema);
         }
@@ -71,20 +104,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn introspect_api(_client: &PolestarClient) -> Result<Value, PolestarError> {
-    // We need to use the internal post_graphql method
-    // Since it's private, we'll do it manually
-
+async fn introspect_api(username: String, password: String) -> Result<Value, PolestarError> {
     let http_client = reqwest::Client::builder()
         .cookie_store(true)
         .timeout(std::time::Duration::from_secs(30))
         .build()?;
 
     // First authenticate to get token
-    let auth_state = std::sync::Arc::new(polestar_api::auth::AuthState::new(
-        std::env::var("POLESTAR_USERNAME").unwrap(),
-        std::env::var("POLESTAR_PASSWORD").unwrap(),
-    ));
+    let auth_state = polestar_api::auth::AuthState::new(username, password);
 
     let token = auth_state.get_valid_token(&http_client).await?;
 
@@ -97,18 +124,28 @@ async fn introspect_api(_client: &PolestarClient) -> Result<Value, PolestarError
 
     let response = http_client
         .post(endpoint)
-        .header("authorization", format!("Bearer {}", token))
+        .bearer_auth(token)
         .header("content-type", "application/json")
         .header("origin", "https://www.polestar.com")
         .json(&body)
         .send()
         .await?;
 
+    let status = response.status();
+    if !status.is_success() {
+        return Err(PolestarError::ApiError(format!(
+            "Introspection request failed with HTTP {status}"
+        )));
+    }
     let json: Value = response.json().await?;
 
     // Check for errors
     if let Some(errors) = json.get("errors") {
-        if let Some(message) = errors.get(0).and_then(|e| e.get("message")) {
+        if let Some(message) = errors
+            .get(0)
+            .and_then(|error| error.get("message"))
+            .and_then(Value::as_str)
+        {
             return Err(PolestarError::GraphQLError(message.to_string()));
         }
     }
@@ -369,5 +406,36 @@ fn extract_type_name(type_ref: Option<&Value>) -> String {
             }
         }
         None => "Unknown".to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn introspection_query_requests_schema_roots_and_nested_type_references() {
+        assert!(INTROSPECTION_QUERY.contains("queryType { name }"));
+        assert!(INTROSPECTION_QUERY.contains("mutationType { name }"));
+        assert!(INTROSPECTION_QUERY.matches("ofType").count() >= 8);
+    }
+
+    #[test]
+    fn formats_nested_graphql_type_references() {
+        let type_ref = serde_json::json!({
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+                "kind": "LIST",
+                "name": null,
+                "ofType": {
+                    "kind": "NON_NULL",
+                    "name": null,
+                    "ofType": { "kind": "SCALAR", "name": "String" }
+                }
+            }
+        });
+
+        assert_eq!(extract_type_name(Some(&type_ref)), "[String!]!");
     }
 }

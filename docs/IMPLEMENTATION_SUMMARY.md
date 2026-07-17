@@ -1,5 +1,10 @@
 # Implementation Summary
 
+> **Historical document:** This records the November 2025 verbose-query
+> experiment. The unsupported verbose query and models were subsequently
+> removed; `get_vehicle_verbose()` now delegates to the supported vehicle
+> summary. See the README for the current API.
+
 Date: 2025-11-27
 
 ## Overview

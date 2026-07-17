@@ -1,5 +1,10 @@
 # Polestar API Rust Wrapper - Implementation Plan
 
+> **Historical document:** This was the original design plan, not a statement of
+> current implementation or test coverage. See the README,
+> [`AUTH_IMPLEMENTATION.md`](AUTH_IMPLEMENTATION.md), and
+> [`TEST_HARNESS.md`](TEST_HARNESS.md) for current behavior.
+
 ## Overview
 
 This document outlines the implementation plan for `polestar-api-rs`, a lightweight Rust wrapper around the Polestar vehicle GraphQL API. The wrapper will provide type-safe access to vehicle telemetry, consumer data, and specifications.
@@ -155,10 +160,8 @@ Based on the documented Polestar API, we'll support three main operations:
 ### 4.3 Test Harness
 - [ ] Create CLI tool for API testing:
   ```bash
-  cargo run --example test_harness -- \
-    --token <TOKEN> \
-    --vin <VIN> \
-    --endpoint telemetry
+  # Credentials and VIN are loaded from an ignored .env file.
+  cargo run --example test_harness --features cli -- --endpoint telemetry
   ```
 - [ ] Add response validation
 - [ ] Pretty-print JSON output

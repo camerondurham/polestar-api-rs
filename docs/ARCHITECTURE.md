@@ -1,5 +1,9 @@
 # Polestar API Rust Wrapper - Architecture Design
 
+> **Design record:** Some planned components below, including specifications and
+> broad retry/caching support, are not part of the current public API. See the
+> README and source-level rustdoc for the implemented surface.
+
 ## Overview
 
 This document describes the technical architecture and design decisions for the `polestar-api-rs` library, a lightweight Rust wrapper for the Polestar vehicle GraphQL API.

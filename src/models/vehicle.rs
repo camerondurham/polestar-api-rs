@@ -444,7 +444,10 @@ pub struct Package {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum PerformanceOptimizationSpecification {
+    /// Structured optimization specification object with known fields.
     Known(PerformanceOptimizationSpec),
+
+    /// Fallback for any backend shape that does not match the known schema.
     Other(Value),
 }
 

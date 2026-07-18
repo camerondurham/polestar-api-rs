@@ -800,7 +800,7 @@ mod tests {
     #[test]
     fn test_performance_optimization_specification_flexible_shape() {
         let json = json!({
-            "vin": "YSMYKEAE7RB000000",
+            "vin": "TESTVEHICLEVIN001",
             "content": {
                 "performanceOptimizationSpecification": true,
                 "model": {"code": "P2", "name": "Polestar 2"},
@@ -817,7 +817,7 @@ mod tests {
         ));
 
         let json = r#"{
-            "vin": "YSMYKEAE7RB000000",
+            "vin": "TESTVEHICLEVIN001",
             "content": {
                 "performanceOptimizationSpecification": {
                     "power": { "value": "201", "unit": "kW" },

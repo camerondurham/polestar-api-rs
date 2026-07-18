@@ -286,20 +286,20 @@ mod tests {
 
     #[test]
     fn client_creation_does_not_connect() {
-        assert!(PolestarClient::new("user@example.com", "password").is_ok());
+        assert!(PolestarClient::new("redacted_user", "redacted_password").is_ok());
     }
 
     #[test]
     fn validates_and_normalizes_vins() {
         assert_eq!(
-            normalize_vin("ysmykeae7rb000000").unwrap(),
-            "YSMYKEAE7RB000000"
+            normalize_vin("ABCDEFGHJKLMNPRST1").unwrap(),
+            "ABCDEFGHJKLMNPRST1"
         );
         assert!(normalize_vin("VIN123").is_err());
-        assert!(normalize_vin("YSMYKEAE7RB00-000").is_err());
-        assert!(normalize_vin("YSMYKEAE7RB00000I").is_err());
-        assert!(normalize_vin("YSMYKEAE7RB00000O").is_err());
-        assert!(normalize_vin("YSMYKEAE7RB00000Q").is_err());
+        assert!(normalize_vin("ABCDEFGHJKLMNPR-1").is_err());
+        assert!(normalize_vin("ABCDEFGHJKLMNPR1I").is_err());
+        assert!(normalize_vin("ABCDEFGHJKLMNPR1O").is_err());
+        assert!(normalize_vin("ABCDEFGHJKLMNPR1Q").is_err());
     }
 
     #[test]
@@ -307,12 +307,12 @@ mod tests {
         let response: TelemetryResponse = serde_json::from_value(serde_json::json!({
             "battery": [
                 {
-                    "vin": "AAAAAAAA1AA111111",
+                    "vin": "ABCDEFGHJKLMNPRST2",
                     "batteryChargeLevelPercentage": 10,
                     "timestamp": { "seconds": "1", "nanos": 0 }
                 },
                 {
-                    "vin": "YSMYKEAE7RB000000",
+                    "vin": "ABCDEFGHJKLMNPRST3",
                     "batteryChargeLevelPercentage": 79,
                     "timestamp": { "seconds": "2", "nanos": 0 }
                 }
@@ -322,7 +322,7 @@ mod tests {
         }))
         .unwrap();
 
-        let telemetry = telemetry_for_vin(response, "ysmykeae7rb000000");
+        let telemetry = telemetry_for_vin(response, "abcdefghjklmnprs1");
         assert_eq!(
             telemetry
                 .battery
@@ -429,8 +429,8 @@ mod tests {
         token_address: std::net::SocketAddr,
     ) -> (PolestarClient, Arc<AuthState>) {
         let auth_state = Arc::new(AuthState::new(
-            "user@example.com".to_string(),
-            "password".to_string(),
+            "redacted_user".to_string(),
+            "redacted_password".to_string(),
         ));
         *auth_state.token.write().await = Some(TokenState {
             access_token: "old-access".to_string(),

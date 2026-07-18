@@ -782,7 +782,7 @@ mod tests {
     #[test]
     fn test_current_vehicle_summary_deserialization() {
         let json = r#"{
-            "vin": "YSMYKEAE7RB000000",
+            "vin": "ABCDEFGHJKLMNPRST3",
             "internalVehicleIdentifier": "1aaeb452-700e-46f3-9899-395b6219c8a6",
             "registrationNo": "MLB007",
             "modelYear": "2024",
@@ -800,7 +800,7 @@ mod tests {
     #[test]
     fn test_performance_optimization_specification_flexible_shape() {
         let json = json!({
-            "vin": "TESTVEHICLEVIN001",
+            "vin": "ABCDEFGHJKLMNPRST4",
             "content": {
                 "performanceOptimizationSpecification": true,
                 "model": {"code": "P2", "name": "Polestar 2"},
@@ -817,7 +817,7 @@ mod tests {
         ));
 
         let json = r#"{
-            "vin": "TESTVEHICLEVIN001",
+            "vin": "ABCDEFGHJKLMNPRST4",
             "content": {
                 "performanceOptimizationSpecification": {
                     "power": { "value": "201", "unit": "kW" },

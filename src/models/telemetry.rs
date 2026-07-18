@@ -108,7 +108,7 @@ mod tests {
         let response: TelemetryResponse = serde_json::from_value(serde_json::json!({
             "health": [null],
             "battery": [{
-                "vin": "YSMYKEAE7RB000000",
+                "vin": "ABCDEFGHJKLMNPRST1",
                 "batteryChargeLevelPercentage": 79,
                 "chargingStatusV2": "CHARGING_STATUS_V2_IDLE",
                 "estimatedChargingTimeToFullMinutes": 0,
@@ -116,7 +116,7 @@ mod tests {
                 "timestamp": { "seconds": "1747822967", "nanos": 996856149 }
             }],
             "odometer": [{
-                "vin": "YSMYKEAE7RB000000",
+                "vin": "ABCDEFGHJKLMNPRST1",
                 "odometerMeters": 11131000,
                 "timestamp": { "seconds": "1747765507", "nanos": 288842041 }
             }]
@@ -135,7 +135,7 @@ mod tests {
     #[test]
     fn accepts_legacy_charging_status_name() {
         let battery: Battery = serde_json::from_value(serde_json::json!({
-            "vin": "AAAAAAAA1AA111111",
+            "vin": "ABCDEFGHJKLMNPRST2",
             "batteryChargeLevelPercentage": 68,
             "chargingStatus": "CHARGING_STATUS_IDLE",
             "timestamp": { "seconds": "1738053874", "nanos": 0 }

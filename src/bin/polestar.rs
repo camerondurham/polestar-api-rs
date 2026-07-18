@@ -70,16 +70,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 if *strict_verbose {
                     client.get_vehicles_verbose().await?
                 } else {
-                match client.get_vehicles_verbose().await {
-                    Ok(vehicles) => vehicles,
-                    Err(err) if verbose_fields_unsupported(&err) => {
-                        eprintln!(
+                    match client.get_vehicles_verbose().await {
+                        Ok(vehicles) => vehicles,
+                        Err(err) if verbose_fields_unsupported(&err) => {
+                            eprintln!(
                             "Verbose vehicle fields are not available from this API response. Falling back to basic vehicles output."
                         );
-                        client.get_vehicles().await?
+                            client.get_vehicles().await?
+                        }
+                        Err(err) => return Err(err.into()),
                     }
-                    Err(err) => return Err(err.into()),
-                }
                 }
             } else {
                 client.get_vehicles().await?

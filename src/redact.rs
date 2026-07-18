@@ -42,6 +42,22 @@ fn password_plain_re() -> &'static Regex {
     })
 }
 
+fn username_quoted_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"(?i)("?(?:username|pf\.username)"?\s*[:=]\s*")([^"]+)(")"#)
+            .expect("quoted username regex should compile")
+    })
+}
+
+fn username_plain_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"(?i)(\b(?:username|pf\.username)\b\s*[:=]\s*)([^\s,;\"]+)"#)
+            .expect("plain username regex should compile")
+    })
+}
+
 fn token_quoted_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
@@ -67,6 +83,7 @@ fn token_plain_re() -> &'static Regex {
 /// This masks:
 /// - Email addresses
 /// - Password fields (`password`, `pass`, `pwd`, `pf.pass`)
+/// - Username fields (`username`, `pf.username`)
 /// - VINs
 /// - Access/refresh tokens and bearer tokens
 pub fn redact_str(input: &str) -> String {
@@ -77,6 +94,13 @@ pub fn redact_str(input: &str) -> String {
         .into_owned();
     out = password_plain_re()
         .replace_all(&out, "$1[REDACTED_PASSWORD]")
+        .into_owned();
+
+    out = username_quoted_re()
+        .replace_all(&out, "$1[REDACTED_USERNAME]$3")
+        .into_owned();
+    out = username_plain_re()
+        .replace_all(&out, "$1[REDACTED_USERNAME]")
         .into_owned();
 
     out = token_quoted_re()
@@ -118,6 +142,15 @@ mod tests {
     }
 
     #[test]
+    fn redacts_usernames() {
+        let input = r#"username=user_123 pf.username="myUser" keep=ignored"#;
+        let output = redact_str(input);
+        assert!(output.contains("username=[REDACTED_USERNAME]"));
+        assert!(output.contains(r#"pf.username="[REDACTED_USERNAME]""#));
+        assert!(output.contains("keep=ignored"));
+    }
+
+    #[test]
     fn redacts_vin() {
         let input = "vin=ABCD1234ABCDEFGH1";
         let output = redact_str(input);
@@ -136,11 +169,11 @@ mod tests {
     #[test]
     fn redacts_mixed_message() {
         let input =
-            "Login failed for account@example.invalid vin=ABCD1234ABCDEFGH1 password=top_secret";
+            "Login failed for account@example.invalid vin=ABCD1234ABCDEFGH1 password=top_secret username=me";
         let output = redact_str(input);
         assert_eq!(
             output,
-            "Login failed for [REDACTED_EMAIL] vin=[REDACTED_VIN] password=[REDACTED_PASSWORD]"
+            "Login failed for [REDACTED_EMAIL] vin=[REDACTED_VIN] password=[REDACTED_PASSWORD] username=[REDACTED_USERNAME]"
         );
     }
 }

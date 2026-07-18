@@ -88,5 +88,5 @@ Polestar's identity and GraphQL services are private upstream APIs and can chang
 
 ## Codex retry status
 - Retrying Codex review request on latest commit after transient service errors.
-- Latest commit attempted: `1a62c4b` (docs update for schema-drift handling); CI is passing.
+- Latest commit attempted: `39e59ba` (docs update and redaction hardening); CI is passing.
 - Codex connector is still returning repeated `Unknown error` responses and no fresh review object on PR #4.

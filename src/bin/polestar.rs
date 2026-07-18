@@ -4,7 +4,7 @@ use clap::{Parser, Subcommand};
 use polestar_api::auth::AuthState;
 use polestar_api::models::telemetry::Telemetry;
 use polestar_api::models::vehicle::Vehicle;
-use polestar_api::PolestarClient;
+use polestar_api::{PolestarClient, PolestarError};
 use std::error::Error;
 use std::io;
 
@@ -32,6 +32,14 @@ enum Command {
         /// Emit the complete response as JSON.
         #[arg(long)]
         json: bool,
+
+        /// Fetch richer vehicle details where available.
+        #[arg(long)]
+        verbose: bool,
+
+        /// Fail the command if verbose fields are not supported.
+        #[arg(long)]
+        strict_verbose: bool,
     },
     /// Fetch current battery, odometer, and health telemetry (default).
     Telemetry {
@@ -52,9 +60,30 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .unwrap_or(&Command::Telemetry { json: false })
     {
         Command::Doctor => doctor(&cli).await?,
-        Command::Vehicles { json } => {
+        Command::Vehicles {
+            json,
+            verbose,
+            strict_verbose,
+        } => {
             let client = client_from_cli(&cli)?;
-            let vehicles = client.get_vehicles().await?;
+            let vehicles = if *verbose {
+                if *strict_verbose {
+                    client.get_vehicles_verbose().await?
+                } else {
+                match client.get_vehicles_verbose().await {
+                    Ok(vehicles) => vehicles,
+                    Err(err) if verbose_fields_unsupported(&err) => {
+                        eprintln!(
+                            "Verbose vehicle fields are not available from this API response. Falling back to basic vehicles output."
+                        );
+                        client.get_vehicles().await?
+                    }
+                    Err(err) => return Err(err.into()),
+                }
+                }
+            } else {
+                client.get_vehicles().await?
+            };
             print_vehicles(&vehicles, *json)?;
         }
         Command::Telemetry { json } => {
@@ -219,6 +248,13 @@ fn print_optional(label: &str, value: Option<i64>, suffix: &str) {
     if let Some(value) = value {
         println!("{label}: {value}{suffix}");
     }
+}
+
+fn verbose_fields_unsupported(error: &PolestarError) -> bool {
+    matches!(
+        error,
+        PolestarError::GraphQLError(message) if message.contains("FieldUndefined")
+    )
 }
 
 fn display_model(vehicle: &Vehicle) -> &str {

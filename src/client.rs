@@ -81,6 +81,40 @@ impl PolestarClient {
         Ok(data.get_consumer_cars_v2.unwrap_or_default())
     }
 
+    /// Lists vehicles with richer details where available.
+    pub async fn get_vehicles_verbose(&self) -> Result<Vec<Vehicle>> {
+        let queries = [
+            graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_HAS_PERFORMANCE,
+            graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_SOFTWARE_ONLY,
+            graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_NO_PERFORMANCE,
+            graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_CONTENT_ONLY,
+            graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_LOCALE,
+            graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE,
+            graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_SOFTWARE,
+        ];
+
+        let mut first_error: Option<crate::error::PolestarError> = None;
+        for query in queries {
+            match self
+                .post_graphql::<VehiclesQueryData>(query, serde_json::json!({}))
+                .await
+            {
+                Ok(data) => return Ok(data.get_consumer_cars_v2.unwrap_or_default()),
+                Err(err) => {
+                    if first_error.is_none() {
+                        first_error = Some(err);
+                    }
+                }
+            }
+        }
+
+        Err(first_error.unwrap_or_else(|| {
+            crate::error::PolestarError::ApiError(
+                "No verbose vehicle query variant succeeded".to_string(),
+            )
+        }))
+    }
+
     /// Fetches the supported vehicle summary for the specified VIN.
     pub async fn get_vehicle(&self, vin: &str) -> Result<Vehicle> {
         let vin = normalize_vin(vin)?;
@@ -92,13 +126,15 @@ impl PolestarClient {
             .ok_or_else(|| PolestarError::InvalidVin(format!("VIN {vin} not found in account")))
     }
 
-    /// Fetches vehicle information for compatibility with earlier releases.
-    ///
-    /// Polestar no longer exposes a dependable verbose vehicle-information
-    /// contract, so this now returns the same supported summary as
-    /// [`Self::get_vehicle`].
+    /// Fetches the verbose vehicle information for the specified VIN.
     pub async fn get_vehicle_verbose(&self, vin: &str) -> Result<Vehicle> {
-        self.get_vehicle(vin).await
+        let vin = normalize_vin(vin)?;
+
+        self.get_vehicles_verbose()
+            .await?
+            .into_iter()
+            .find(|vehicle| vehicle.vin.eq_ignore_ascii_case(&vin))
+            .ok_or_else(|| PolestarError::InvalidVin(format!("VIN {vin} not found in account")))
     }
 
     async fn authenticate(&self) -> Result<String> {

@@ -656,7 +656,7 @@ pub struct SoftwareInfo {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PerformanceOptimization {
     /// Is enabled.
-    pub value: Option<bool>,
+    pub value: Option<Value>,
 
     /// Description.
     pub description: Option<String>,

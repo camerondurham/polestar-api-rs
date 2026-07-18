@@ -245,6 +245,22 @@ query GetConsumerCarsV2VerboseSoftwareOnly {
 }
 "#;
 
+/// Query attempting scalar software performance optimization field.
+pub const GET_CONSUMER_CARS_V2_VERBOSE_SOFTWARE_SCALAR: &str = r#"
+query GetConsumerCarsV2VerboseSoftwareScalar {
+    getConsumerCarsV2 {
+        vin
+        internalVehicleIdentifier
+        registrationNo
+        modelName
+        structureWeek
+        software {
+            performanceOptimization
+        }
+    }
+}
+"#;
+
 /// Query attempting only performance optimization content metadata.
 pub const GET_CONSUMER_CARS_V2_VERBOSE_CONTENT_ONLY: &str = r#"
 query GetConsumerCarsV2VerboseContentOnly {
@@ -270,6 +286,22 @@ query GetConsumerCarsV2VerboseContentOnly {
                     description
                 }
             }
+        }
+    }
+}
+"#;
+
+/// Query attempting scalar performance optimization specification metadata.
+pub const GET_CONSUMER_CARS_V2_VERBOSE_PERFORMANCE_SPEC_SCALAR: &str = r#"
+query GetConsumerCarsV2VerbosePerformanceSpecScalar {
+    getConsumerCarsV2 {
+        vin
+        internalVehicleIdentifier
+        registrationNo
+        modelName
+        structureWeek
+        content {
+            performanceOptimizationSpecification
         }
     }
 }
@@ -314,6 +346,13 @@ mod tests {
                 "software {\n            performanceOptimization {\n                value\n            }\n        }"
             )
         );
+    }
+
+    #[test]
+    fn verbose_fallback_queries_include_scalar_performance_paths() {
+        assert!(GET_CONSUMER_CARS_V2_VERBOSE_SOFTWARE_SCALAR.contains("performanceOptimization"));
+        assert!(GET_CONSUMER_CARS_V2_VERBOSE_PERFORMANCE_SPEC_SCALAR
+            .contains("performanceOptimizationSpecification"));
     }
 
     #[test]

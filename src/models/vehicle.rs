@@ -654,7 +654,18 @@ pub struct SoftwareInfo {
 
 /// Performance optimization.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PerformanceOptimization {
+#[serde(untagged)]
+pub enum PerformanceOptimization {
+    /// Structured performance optimization metadata object.
+    Known(PerformanceOptimizationData),
+
+    /// Fallback for scalar or unknown backend shapes.
+    Other(Value),
+}
+
+/// Structured performance optimization metadata.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PerformanceOptimizationData {
     /// Is enabled.
     pub value: Option<Value>,
 
@@ -834,6 +845,48 @@ mod tests {
                 .performance_optimization_specification
                 .expect("spec should deserialize"),
             PerformanceOptimizationSpecification::Known(_)
+        ));
+    }
+
+    #[test]
+    fn test_performance_optimization_shape() {
+        let json = json!({
+            "vin": "ABCDEFGHJKLMNPRST5",
+            "software": {
+                "performanceOptimization": {
+                    "value": true,
+                    "description": "enabled via update"
+                },
+                "version": "1.2.3"
+            }
+        });
+
+        let vehicle: Vehicle = serde_json::from_value(json).unwrap();
+        assert!(matches!(
+            vehicle
+                .software
+                .as_ref()
+                .and_then(|software| software.performance_optimization.as_ref())
+                .expect("optimization should deserialize"),
+            PerformanceOptimization::Known(_)
+        ));
+
+        let json = json!({
+            "vin": "ABCDEFGHJKLMNPRST5",
+            "software": {
+                "performanceOptimization": false,
+                "version": "1.2.3"
+            }
+        });
+
+        let vehicle: Vehicle = serde_json::from_value(json).unwrap();
+        assert!(matches!(
+            vehicle
+                .software
+                .as_ref()
+                .and_then(|software| software.performance_optimization.as_ref())
+                .expect("optimization should deserialize"),
+            PerformanceOptimization::Other(_)
         ));
     }
 }

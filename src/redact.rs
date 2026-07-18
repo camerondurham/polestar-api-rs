@@ -135,7 +135,8 @@ mod tests {
 
     #[test]
     fn redacts_mixed_message() {
-        let input = "Login failed for account@example.invalid vin=ABCD1234ABCDEFGH1 password=top_secret";
+        let input =
+            "Login failed for account@example.invalid vin=ABCD1234ABCDEFGH1 password=top_secret";
         let output = redact_str(input);
         assert_eq!(
             output,

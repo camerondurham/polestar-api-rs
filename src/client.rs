@@ -291,10 +291,7 @@ mod tests {
 
     #[test]
     fn validates_and_normalizes_vins() {
-        assert_eq!(
-            normalize_vin("ABCDEFGHJKLMNPRST1").unwrap(),
-            "ABCDEFGHJKLMNPRST1"
-        );
+        assert_eq!(normalize_vin("ABCDEF12345678901").unwrap(), "ABCDEF12345678901");
         assert!(normalize_vin("VIN123").is_err());
         assert!(normalize_vin("ABCDEFGHJKLMNPR-1").is_err());
         assert!(normalize_vin("ABCDEFGHJKLMNPR1I").is_err());
@@ -307,12 +304,12 @@ mod tests {
         let response: TelemetryResponse = serde_json::from_value(serde_json::json!({
             "battery": [
                 {
-                    "vin": "ABCDEFGHJKLMNPRST2",
+                    "vin": "ABCDEF12345678902",
                     "batteryChargeLevelPercentage": 10,
                     "timestamp": { "seconds": "1", "nanos": 0 }
                 },
                 {
-                    "vin": "ABCDEFGHJKLMNPRST3",
+                    "vin": "ABCDEF12345678903",
                     "batteryChargeLevelPercentage": 79,
                     "timestamp": { "seconds": "2", "nanos": 0 }
                 }
@@ -322,7 +319,7 @@ mod tests {
         }))
         .unwrap();
 
-        let telemetry = telemetry_for_vin(response, "abcdefghjklmnprs1");
+        let telemetry = telemetry_for_vin(response, "abcdef12345678903");
         assert_eq!(
             telemetry
                 .battery

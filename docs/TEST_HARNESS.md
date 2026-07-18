@@ -85,3 +85,6 @@ cargo run --features cli --bin polestar -- telemetry
 Polestar's identity and GraphQL services are private upstream APIs and can change without notice. Offline tests verify this crate's request, response, retry, and validation behavior, but they cannot guarantee that the current upstream contract remains available. A release should therefore combine the deterministic gate with an opt-in manual smoke test when credentials are available.
 
 - [x] CI passes with deterministic fixtures and no test removals as of 2026-07-18 after the latest local run.
+
+## Codex retry status
+- Retrying Codex review request on latest commit after transient service errors.

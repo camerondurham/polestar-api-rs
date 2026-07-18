@@ -103,7 +103,7 @@ mod tests {
 
     #[test]
     fn redacts_email() {
-        let input = "user=user@example.com";
+        let input = "user=[example_user]";
         let output = redact_str(input);
         assert_eq!(output, "user=[REDACTED_EMAIL]");
     }
@@ -119,7 +119,7 @@ mod tests {
 
     #[test]
     fn redacts_vin() {
-        let input = "vin=YV1XZ72V6L1234567";
+        let input = "vin=ABCD1234ABCDEFGH1";
         let output = redact_str(input);
         assert_eq!(output, "vin=[REDACTED_VIN]");
     }
@@ -135,7 +135,7 @@ mod tests {
 
     #[test]
     fn redacts_mixed_message() {
-        let input = "Login failed for john.doe@example.com vin=YV1XZ72V6L1234567 password=hunter2";
+        let input = "Login failed for account@example.invalid vin=ABCD1234ABCDEFGH1 password=top_secret";
         let output = redact_str(input);
         assert_eq!(
             output,

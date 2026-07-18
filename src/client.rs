@@ -291,7 +291,10 @@ mod tests {
 
     #[test]
     fn validates_and_normalizes_vins() {
-        assert_eq!(normalize_vin("ABCDEF12345678901").unwrap(), "ABCDEF12345678901");
+        assert_eq!(
+            normalize_vin("ABCDEF12345678901").unwrap(),
+            "ABCDEF12345678901"
+        );
         assert!(normalize_vin("VIN123").is_err());
         assert!(normalize_vin("ABCDEFGHJKLMNPR-1").is_err());
         assert!(normalize_vin("ABCDEFGHJKLMNPR1I").is_err());

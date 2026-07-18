@@ -145,6 +145,10 @@ The current GraphQL fields and OIDC flow are aligned with the maintained
 verbose vehicle query is no longer considered stable; `get_vehicle_verbose()` is
 retained as a compatibility method and now returns the supported vehicle summary.
 
+`get_vehicles_verbose()` now also accepts schema drift in performance-upgrade
+payloads by probing multiple query variants, including scalar and object shapes for
+`performanceOptimization` and `performanceOptimizationSpecification`.
+
 ## License
 
 Licensed under either the MIT License or Apache License 2.0, at your option.

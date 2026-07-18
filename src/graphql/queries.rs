@@ -170,6 +170,10 @@ query GetConsumerCarsV2VerboseLocale {
             }
         }
         content {
+            model {
+                code
+                name
+            }
             performanceOptimizationSpecification {
                 power {
                     value
@@ -207,6 +211,10 @@ query GetConsumerCarsV2VerboseNoPerformance {
             }
         }
         content {
+            model {
+                code
+                name
+            }
             performanceOptimizationSpecification {
                 power {
                     value
@@ -271,6 +279,10 @@ query GetConsumerCarsV2VerboseContentOnly {
         modelName
         structureWeek
         content {
+            model {
+                code
+                name
+            }
             performanceOptimizationSpecification {
                 power {
                     value
@@ -301,6 +313,10 @@ query GetConsumerCarsV2VerbosePerformanceSpecScalar {
         modelName
         structureWeek
         content {
+            model {
+                code
+                name
+            }
             performanceOptimizationSpecification
         }
     }

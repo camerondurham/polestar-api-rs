@@ -84,15 +84,15 @@ impl PolestarClient {
     /// Lists vehicles with richer details where available.
     pub async fn get_vehicles_verbose(&self) -> Result<Vec<Vehicle>> {
         let queries = [
-            graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_HAS_PERFORMANCE,
-            graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_SOFTWARE_SCALAR,
-            graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_SOFTWARE_ONLY,
-            graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_PERFORMANCE_SPEC_SCALAR,
-            graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_NO_PERFORMANCE,
-            graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_CONTENT_ONLY,
-            graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_LOCALE,
             graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE,
             graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_SOFTWARE,
+            graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_SOFTWARE_ONLY,
+            graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_SOFTWARE_SCALAR,
+            graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_CONTENT_ONLY,
+            graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_PERFORMANCE_SPEC_SCALAR,
+            graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_NO_PERFORMANCE,
+            graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_LOCALE,
+            graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_HAS_PERFORMANCE,
         ];
 
         let mut first_error: Option<crate::error::PolestarError> = None;
@@ -103,9 +103,13 @@ impl PolestarClient {
             {
                 Ok(data) => return Ok(data.get_consumer_cars_v2.unwrap_or_default()),
                 Err(err) => {
-                    if first_error.is_none() {
-                        first_error = Some(err);
+                    if err.is_graphql_schema_error() {
+                        if first_error.is_none() {
+                            first_error = Some(err);
+                        }
+                        continue;
                     }
+                    return Err(err);
                 }
             }
         }
@@ -132,11 +136,16 @@ impl PolestarClient {
     pub async fn get_vehicle_verbose(&self, vin: &str) -> Result<Vehicle> {
         let vin = normalize_vin(vin)?;
 
-        self.get_vehicles_verbose()
-            .await?
-            .into_iter()
-            .find(|vehicle| vehicle.vin.eq_ignore_ascii_case(&vin))
-            .ok_or_else(|| PolestarError::InvalidVin(format!("VIN {vin} not found in account")))
+        match self.get_vehicles_verbose().await {
+            Ok(vehicles) => vehicles
+                .into_iter()
+                .find(|vehicle| vehicle.vin.eq_ignore_ascii_case(&vin))
+                .ok_or_else(|| {
+                    PolestarError::InvalidVin(format!("VIN {vin} not found in account"))
+                }),
+            Err(err) if err.is_graphql_schema_error() => self.get_vehicle(&vin).await,
+            Err(err) => Err(err),
+        }
     }
 
     async fn authenticate(&self) -> Result<String> {

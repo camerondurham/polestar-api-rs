@@ -1,6 +1,6 @@
 //! Vehicle data models.
 
-use serde::{Deserialize, Serialize};
+use serde::{de, Deserialize, Serialize};
 use serde_json::Value;
 
 /// Complete vehicle information.
@@ -441,14 +441,32 @@ pub struct Package {
 }
 
 /// Performance optimization specification.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
+#[derive(Debug, Clone, Serialize)]
 pub enum PerformanceOptimizationSpecification {
     /// Structured optimization specification object with known fields.
     Known(PerformanceOptimizationSpec),
 
     /// Fallback for any backend shape that does not match the known schema.
     Other(Value),
+}
+
+impl<'de> Deserialize<'de> for PerformanceOptimizationSpecification {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        let value = Value::deserialize(deserializer)?;
+        let has_expected_fields = value.get("power").is_some()
+            || value.get("torqueMax").is_some()
+            || value.get("acceleration").is_some();
+        if !has_expected_fields {
+            return Ok(Self::Other(value));
+        }
+
+        let known = serde_json::from_value::<PerformanceOptimizationSpec>(value.clone())
+            .map_err(de::Error::custom)?;
+        Ok(Self::Known(known))
+    }
 }
 
 /// Legacy structured performance specification payload.
@@ -845,6 +863,23 @@ mod tests {
                 .performance_optimization_specification
                 .expect("spec should deserialize"),
             PerformanceOptimizationSpecification::Known(_)
+        ));
+
+        let json = json!({
+            "vin": "ABCDEFGHJKLMNPRST4",
+            "content": {
+                "performanceOptimizationSpecification": { "enabled": true },
+                "model": {"code": "P2", "name": "Polestar 2"},
+            }
+        });
+
+        let vehicle: Vehicle = serde_json::from_value(json).unwrap();
+        assert!(matches!(
+            vehicle
+                .content
+                .performance_optimization_specification
+                .expect("spec should deserialize"),
+            PerformanceOptimizationSpecification::Other(_)
         ));
     }
 

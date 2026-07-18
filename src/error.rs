@@ -50,5 +50,21 @@ pub enum PolestarError {
     GraphQLError(String),
 }
 
+impl PolestarError {
+    /// Returns true when the error likely came from schema drift in the GraphQL query.
+    pub fn is_graphql_schema_error(&self) -> bool {
+        match self {
+            Self::GraphQLError(message) => {
+                let message = message.to_ascii_lowercase();
+                message.contains("cannot query field")
+                    || message.contains("cannot query argument")
+                    || message.contains("unknown argument")
+                    || message.contains("unknown type")
+            }
+            _ => false,
+        }
+    }
+}
+
 /// Convenient Result type alias for Polestar API operations.
 pub type Result<T> = std::result::Result<T, PolestarError>;

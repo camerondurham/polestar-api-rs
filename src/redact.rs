@@ -103,7 +103,7 @@ mod tests {
 
     #[test]
     fn redacts_email() {
-        let input = "user=[example_user]";
+        let input = "user=redacted-user@example.com";
         let output = redact_str(input);
         assert_eq!(output, "user=[REDACTED_EMAIL]");
     }

@@ -97,20 +97,23 @@ impl PolestarClient {
 
         let mut first_error: Option<crate::error::PolestarError> = None;
         for query in queries {
-            match self
-                .post_graphql::<VehiclesQueryData>(query, serde_json::json!({}))
-                .await
-            {
-                Ok(data) => return Ok(data.get_consumer_cars_v2.unwrap_or_default()),
-                Err(err) => {
-                    if err.is_graphql_schema_error() {
+            match self.post_graphql_raw(query, serde_json::json!({})).await {
+                Ok(data) => match serde_json::from_value::<VehiclesQueryData>(data) {
+                    Ok(data) => return Ok(data.get_consumer_cars_v2.unwrap_or_default()),
+                    Err(err) => {
+                        let err = PolestarError::ParseError(err);
                         if first_error.is_none() {
                             first_error = Some(err);
                         }
-                        continue;
                     }
-                    return Err(err);
+                },
+                Err(err) if err.is_graphql_schema_error() => {
+                    if first_error.is_none() {
+                        first_error = Some(err);
+                    }
+                    continue;
                 }
+                Err(err) => return Err(err),
             }
         }
 
@@ -143,7 +146,7 @@ impl PolestarClient {
                 .ok_or_else(|| {
                     PolestarError::InvalidVin(format!("VIN {vin} not found in account"))
                 }),
-            Err(err) if err.is_graphql_schema_error() => self.get_vehicle(&vin).await,
+            Err(err) if err.is_verbose_probe_error() => self.get_vehicle(&vin).await,
             Err(err) => Err(err),
         }
     }
@@ -156,6 +159,15 @@ impl PolestarClient {
     where
         T: serde::de::DeserializeOwned,
     {
+        let data = self.post_graphql_raw(query, variables).await?;
+        Ok(serde_json::from_value(data)?)
+    }
+
+    async fn post_graphql_raw(
+        &self,
+        query: &str,
+        variables: serde_json::Value,
+    ) -> Result<serde_json::Value> {
         let request_body = serde_json::json!({
             "query": query,
             "variables": variables
@@ -195,7 +207,7 @@ impl PolestarClient {
                 )));
             }
 
-            let envelope: GraphQlEnvelope<T> = serde_json::from_str(&body)?;
+            let envelope: GraphQlEnvelope<serde_json::Value> = serde_json::from_str(&body)?;
             if !envelope.errors.is_empty() {
                 let messages = envelope
                     .errors
@@ -423,6 +435,41 @@ mod tests {
         assert!(api_requests[1]
             .to_ascii_lowercase()
             .contains("authorization: bearer new-access"));
+    }
+
+    #[tokio::test]
+    async fn falls_back_to_leaner_verbose_query_on_shape_drift() {
+        let api_listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let api_address = api_listener.local_addr().unwrap();
+        let api_server = thread::spawn(move || {
+            let first = respond_once(
+                &api_listener,
+                "200 OK",
+                r#"{"data":{"getConsumerCarsV2":[{"vin":"ABCDEFGHJKLMNPRST4","content":{"model":{"code":"P2","name":"Polestar 2"},"images":{"studio":{"url":"https://example.com/car.jpg","angles":[1,2]}}}}]}}"#,
+            );
+            let second = respond_once(
+                &api_listener,
+                "200 OK",
+                r#"{"data":{"getConsumerCarsV2":[{"vin":"ABCDEFGHJKLMNPRST4","modelName":"Polestar 2","hasPerformancePackage":true}]}}"#,
+            );
+            vec![first, second]
+        });
+
+        let token_listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let token_address = token_listener.local_addr().unwrap();
+        let (client, _) = test_client(api_address, token_address).await;
+
+        let vehicles = client
+            .get_vehicles_verbose()
+            .await
+            .expect("verbose vehicle fallback should succeed");
+
+        let requests = api_server.join().unwrap();
+        assert_eq!(vehicles.len(), 1);
+        assert_eq!(vehicles[0].vin, "ABCDEFGHJKLMNPRST4");
+        assert_eq!(requests.len(), 2);
+        assert!(requests[0].contains("GetConsumerCarsV2Verbose"));
+        assert!(requests[1].contains("GetConsumerCarsV2VerboseSoftware"));
     }
 
     #[test]

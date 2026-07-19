@@ -442,6 +442,7 @@ pub struct Package {
 
 /// Performance optimization specification.
 #[derive(Debug, Clone, Serialize)]
+#[serde(untagged)]
 pub enum PerformanceOptimizationSpecification {
     /// Structured optimization specification object with known fields.
     Known(PerformanceOptimizationSpec),
@@ -463,9 +464,10 @@ impl<'de> Deserialize<'de> for PerformanceOptimizationSpecification {
             return Ok(Self::Other(value));
         }
 
-        let known = serde_json::from_value::<PerformanceOptimizationSpec>(value.clone())
-            .map_err(de::Error::custom)?;
-        Ok(Self::Known(known))
+        match serde_json::from_value::<PerformanceOptimizationSpec>(value.clone()) {
+            Ok(known) => Ok(Self::Known(known)),
+            Err(_) => Ok(Self::Other(value)),
+        }
     }
 }
 
@@ -869,6 +871,26 @@ mod tests {
             "vin": "ABCDEFGHJKLMNPRST4",
             "content": {
                 "performanceOptimizationSpecification": { "enabled": true },
+                "model": {"code": "P2", "name": "Polestar 2"},
+            }
+        });
+
+        let vehicle: Vehicle = serde_json::from_value(json).unwrap();
+        assert!(matches!(
+            vehicle
+                .content
+                .performance_optimization_specification
+                .expect("spec should deserialize"),
+            PerformanceOptimizationSpecification::Other(_)
+        ));
+
+        let json = json!({
+            "vin": "ABCDEFGHJKLMNPRST4",
+            "content": {
+                "performanceOptimizationSpecification": {
+                    "power": "201",
+                    "torqueMax": {"value": "420", "unit": "Nm"},
+                },
                 "model": {"code": "P2", "name": "Polestar 2"},
             }
         });

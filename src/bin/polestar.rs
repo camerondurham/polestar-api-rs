@@ -251,10 +251,7 @@ fn print_optional(label: &str, value: Option<i64>, suffix: &str) {
 }
 
 fn verbose_fields_unsupported(error: &PolestarError) -> bool {
-    matches!(
-        error,
-        PolestarError::GraphQLError(message) if message.contains("FieldUndefined")
-    )
+    error.is_verbose_probe_error()
 }
 
 fn display_model(vehicle: &Vehicle) -> &str {

@@ -60,11 +60,56 @@ impl PolestarError {
                     || message.contains("cannot query argument")
                     || message.contains("unknown argument")
                     || message.contains("unknown type")
+                    || message.contains("fieldundefined")
+                    || message.contains("field is not defined")
+                    || message.contains("must not have a selection")
+                    || message.contains("must have a selection of subfields")
             }
             _ => false,
         }
+    }
+
+    /// Returns true when the request should retry with a leaner verbose query.
+    pub fn is_verbose_probe_error(&self) -> bool {
+        self.is_graphql_schema_error() || matches!(self, Self::ParseError(_))
     }
 }
 
 /// Convenient Result type alias for Polestar API operations.
 pub type Result<T> = std::result::Result<T, PolestarError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn detects_graphql_schema_errors() {
+        assert!(PolestarError::GraphQLError(
+            "Cannot query field \"foo\" on type \"Vehicle\"".into(),
+        )
+        .is_graphql_schema_error());
+        assert!(PolestarError::GraphQLError(
+            "FieldUndefined: cannot query field software.performanceOptimization".into(),
+        )
+        .is_graphql_schema_error());
+        assert!(PolestarError::GraphQLError(
+            "Field \"software\" must not have a selection of subfields".into(),
+        )
+        .is_graphql_schema_error());
+        assert!(
+            PolestarError::GraphQLError("Cannot query argument \"locale\" on field\"".into(),)
+                .is_graphql_schema_error()
+        );
+
+        assert!(!PolestarError::AuthError("bad token".into()).is_graphql_schema_error());
+        assert!(!PolestarError::ApiError("random API failure".into()).is_graphql_schema_error());
+    }
+
+    #[test]
+    fn detects_verbose_probe_errors() {
+        let parse_error = serde_json::from_str::<i32>("\"value\"").unwrap_err();
+        assert!(PolestarError::ParseError(parse_error).is_verbose_probe_error());
+        assert!(PolestarError::GraphQLError("FieldUndefined".into()).is_verbose_probe_error());
+        assert!(!PolestarError::NoTelemetry("ABC".to_string()).is_verbose_probe_error());
+    }
+}

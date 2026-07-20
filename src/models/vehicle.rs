@@ -689,14 +689,33 @@ impl<'de> Deserialize<'de> for PerformanceOptimization {
         D: de::Deserializer<'de>,
     {
         let value = Value::deserialize(deserializer)?;
-        let has_known_fields =
-            value.get("value").is_some() || value.get("description").is_some() || value.get("timestamp").is_some();
+        let has_known_fields = value.get("value").is_some()
+            || value.get("description").is_some()
+            || value.get("timestamp").is_some();
+
+        let value_object = match value.as_object() {
+            Some(value_object) => value_object,
+            None => return Ok(Self::Other(value)),
+        };
+
+        let has_unknown_fields = value_object
+            .keys()
+            .any(|field| !matches!(field.as_str(), "value" | "description" | "timestamp"));
         if !has_known_fields {
             return Ok(Self::Other(value));
         }
+        if has_unknown_fields {
+            return Ok(Self::Other(value));
+        }
 
-        let known = serde_json::from_value::<PerformanceOptimizationData>(value.clone())
-            .map_err(de::Error::custom)?;
+        let known = match serde_json::from_value::<PerformanceOptimizationData>(value.clone()) {
+            Ok(known) => known,
+            Err(_) => return Ok(Self::Other(value)),
+        };
+
+        if known.value.is_none() && known.description.is_none() && known.timestamp.is_none() {
+            return Ok(Self::Other(value));
+        }
 
         Ok(Self::Known(known))
     }

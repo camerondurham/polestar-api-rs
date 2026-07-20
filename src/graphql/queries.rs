@@ -242,7 +242,9 @@ query GetConsumerCarsV2VerboseSoftwareOnly {
         vin
         internalVehicleIdentifier
         registrationNo
+        modelYear
         modelName
+        pno34
         structureWeek
         software {
             performanceOptimization {
@@ -260,7 +262,9 @@ query GetConsumerCarsV2VerboseSoftwareScalar {
         vin
         internalVehicleIdentifier
         registrationNo
+        modelYear
         modelName
+        pno34
         structureWeek
         software {
             performanceOptimization
@@ -362,6 +366,10 @@ mod tests {
                 "software {\n            performanceOptimization {\n                value\n            }\n        }"
             )
         );
+        assert!(GET_CONSUMER_CARS_V2_VERBOSE_SOFTWARE_ONLY.contains("modelYear"));
+        assert!(GET_CONSUMER_CARS_V2_VERBOSE_SOFTWARE_ONLY.contains("pno34"));
+        assert!(GET_CONSUMER_CARS_V2_VERBOSE_SOFTWARE_SCALAR.contains("modelYear"));
+        assert!(GET_CONSUMER_CARS_V2_VERBOSE_SOFTWARE_SCALAR.contains("pno34"));
     }
 
     #[test]

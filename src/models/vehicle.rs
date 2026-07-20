@@ -673,7 +673,7 @@ pub struct SoftwareInfo {
 }
 
 /// Performance optimization.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 pub enum PerformanceOptimization {
     /// Structured performance optimization metadata object.
@@ -681,6 +681,25 @@ pub enum PerformanceOptimization {
 
     /// Fallback for scalar or unknown backend shapes.
     Other(Value),
+}
+
+impl<'de> Deserialize<'de> for PerformanceOptimization {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        let value = Value::deserialize(deserializer)?;
+        let has_known_fields =
+            value.get("value").is_some() || value.get("description").is_some() || value.get("timestamp").is_some();
+        if !has_known_fields {
+            return Ok(Self::Other(value));
+        }
+
+        let known = serde_json::from_value::<PerformanceOptimizationData>(value.clone())
+            .map_err(de::Error::custom)?;
+
+        Ok(Self::Known(known))
+    }
 }
 
 /// Structured performance optimization metadata.
@@ -932,6 +951,27 @@ mod tests {
             "vin": "ABCDEFGHJKLMNPRST5",
             "software": {
                 "performanceOptimization": false,
+                "version": "1.2.3"
+            }
+        });
+
+        let vehicle: Vehicle = serde_json::from_value(json).unwrap();
+        assert!(matches!(
+            vehicle
+                .software
+                .as_ref()
+                .and_then(|software| software.performance_optimization.as_ref())
+                .expect("optimization should deserialize"),
+            PerformanceOptimization::Other(_)
+        ));
+
+        let json = json!({
+            "vin": "ABCDEFGHJKLMNPRST5",
+            "software": {
+                "performanceOptimization": {
+                    "enabled": true,
+                    "description": "feature flag"
+                },
                 "version": "1.2.3"
             }
         });

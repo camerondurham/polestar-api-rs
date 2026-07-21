@@ -1,128 +1,52 @@
-# Authentication Implementation Plan
+# Authentication implementation
 
 ## Overview
-Implement Polestar OAuth2/OIDC authentication flow based on pypolestar reference.
 
-## Auth Flow Steps
-1. OIDC discovery → get endpoints
-2. Generate PKCE challenge (code_verifier, code_challenge)
-3. GET authorization endpoint → extract resume_path from response
-4. POST credentials to resume_path → get redirect with code
-5. Handle T&C acceptance if uid present (no code)
-6. Exchange code for tokens
-7. Store access_token, refresh_token, expiry
-8. Refresh when needed
+The client uses Polestar's public OAuth 2.0/OIDC authorization-code flow with PKCE. Authentication is lazy: constructing `PolestarClient` performs no network I/O, and the first API request starts authentication.
 
-## Constants (from pypolestar)
-```
-OIDC_PROVIDER: https://polestarid.eu.polestar.com
-CLIENT_ID:
-REDIRECT_URI: https://www.polestar.com/sign-in-callback
-SCOPE: openid profile email customer:attributes
-TOKEN_REFRESH_WINDOW: 300s
-```
+Tokens are held only in memory. Cloned clients share an `AuthState`, and an async mutex serializes login and refresh work so concurrent callers do not perform duplicate authentication flows.
 
-## Task List
+## Flow
 
-### Phase 1: Core Auth Types ✅
-- [x] Add auth module `src/auth.rs`
-- [x] Define `OidcConfig` struct (issuer, token_endpoint, authorization_endpoint)
-- [x] Define `TokenResponse` struct (access_token, refresh_token, expires_in)
-- [x] Add auth constants to `src/lib.rs` or separate constants file
-- [x] Add PKCE helper functions (generate_code_verifier, generate_code_challenge)
+1. Fetch and cache OIDC discovery metadata.
+2. Generate a random PKCE verifier, SHA-256 challenge, and OAuth `state` value.
+3. Request the provider login resume path.
+4. Submit account credentials and, when required, terms confirmation.
+5. Validate that the final redirect uses the configured callback URL and contains the exact expected `state`.
+6. Exchange the authorization code and verifier for tokens.
+7. Refresh the access token before expiry.
+8. If the vehicle API rejects an otherwise unexpired token with HTTP 401, mark only that access token as expired, refresh or log in, and retry the GraphQL request once.
 
-### Phase 2: OIDC Discovery ✅
-- [x] Implement `get_oidc_config()` - fetch .well-known/openid-configuration
-- [x] Parse JSON response into OidcConfig
-- [x] Add error handling for network/parse failures
+Refresh responses may omit `refresh_token`, as allowed by OAuth. The client retains the previous refresh token in that case. Access and refresh tokens are redacted from their `Debug` output.
 
-### Phase 3: Authorization Code Flow ✅
-- [x] Implement `get_resume_path()` - GET authorization endpoint, extract resume path from HTML
-- [x] Implement `get_authorization_code()` - POST credentials to resume path
-- [x] Handle 302/303 redirects
-- [x] Extract code from redirect params
-- [x] Handle T&C acceptance (uid present, no code) - POST confirmation, retry
+## Error and retry behavior
 
-### Phase 4: Token Exchange ✅
-- [x] Implement `exchange_code_for_token()` - POST to token endpoint
-- [x] Parse token response
-- [x] Calculate token expiry from expires_in
-- [x] Store tokens in client state
+- Invalid credentials return `PolestarError::InvalidCredentials` without retrying.
+- An invalid or expired refresh token causes a fresh authorization flow.
+- Transient full-login failures are retried once after a one-second delay.
+- A GraphQL request is retried at most once after HTTP 401; a second 401 is returned as an authentication error.
+- HTTP 429 returns `PolestarError::RateLimitExceeded` so callers can apply policy-appropriate backoff.
+- Server error bodies pass through the crate's credential, token, email, and VIN redactor before being included in errors.
 
-### Phase 5: Token Management ✅
-- [x] Implement `refresh_token()` - POST refresh_token grant
-- [x] Implement `is_token_valid()` - check expiry
-- [x] Implement `needs_refresh()` - check refresh window
-- [x] Add token mutex/lock for thread safety
+## Automated coverage
 
-### Phase 6: Integration ✅
-- [x] Update `PolestarClient::new()` to call auth on init
-- [x] Update `authenticate()` method to use new flow
-- [x] Add `get_token()` method - returns valid token (refresh if needed)
-- [x] Update `post_graphql()` to use `get_token()` for bearer token
-- [x] Add token caching (optional - in-memory first)
+The local test suite covers:
 
-### Phase 7: Error Handling ✅
-- [x] Add specific auth errors (InvalidCredentials, TokenExpired, etc)
-- [x] Handle ERR001 (invalid username/password)
-- [x] Handle missing code/uid edge cases
-- [x] Add retry logic for transient failures
+- PKCE verifier, challenge, and state generation
+- Token validity and proactive refresh thresholds
+- OIDC metadata and token response deserialization
+- Refresh responses that omit a replacement refresh token
+- Preservation of the old refresh token during a real local HTTP refresh exchange
+- Access-token invalidation without clobbering a newer concurrent token
+- HTTP 401 → refresh → one-time GraphQL retry behavior against local mock servers
+- OAuth callback URL and state acceptance, missing state, mismatched state, and unexpected callback hosts
+- Redacted token `Debug` output
 
-### Phase 8: Testing ✅
-- [x] Unit tests for PKCE generation
-- [x] Mock tests for each auth step
-- [x] Integration test with real credentials
-- [x] Test token refresh flow
-- [x] Test error cases
+No automated test uses real Polestar credentials. Live authentication and telemetry remain opt-in manual checks because they require a private account and depend on an unsupported upstream API. This distinction keeps CI deterministic and prevents secrets from entering the test environment.
 
-## Implementation Complete! 🎉
+## Operational notes
 
-All phases completed successfully. The authentication flow is fully functional and tested with real Polestar credentials.
-
-### Verified Working:
-- OIDC discovery
-- Authorization code flow with PKCE
-- Token exchange
-- Token refresh
-- Automatic token management
-- Error handling (invalid credentials, token expiry, etc.)
-- Integration with PolestarClient
-
-### Example Output:
-```
-=== Vehicle Information ===
-  VIN: LPXXXXXXXXNXXXXXX
-  Market: US
-
-=== Model ===
-  Name: Polestar 2
-  Code: 534
-
-=== Battery ===
-  78 kWh
-
-=== Torque ===
-  487 lb-ft
-```
-
-## Dependencies Needed
-```toml
-reqwest = { version = "0.11", features = ["json", "cookies"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-base64 = "0.21"
-sha2 = "0.10"
-rand = "0.8"
-regex = "1.10"
-```
-
-## Key Implementation Notes
-- Use reqwest cookie store for session management
-- PKCE uses SHA256 + base64url encoding
-- Resume path extracted via regex from HTML response
-- Token refresh should happen 300s before expiry or at 50% lifetime
-- Thread-safe token access via Mutex/RwLock
-
-## Reference Files
-- `pypolestar/pypolestar/auth.py` - main auth logic
-- `pypolestar/pypolestar/const.py` - constants
+- The HTTP clients use 30-second request timeouts and a versioned user agent.
+- Authentication session cookies and tokens are not persisted.
+- Passwords should be supplied through `POLESTAR_PASSWORD` or a local ignored `.env` file, never through command-line arguments.
+- The upstream identity and GraphQL contracts are private and may change without notice.

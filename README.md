@@ -53,7 +53,8 @@ POLESTAR_VIN="YOUR_17_CHARACTER_VIN"
 ```
 
 `.env` is ignored by Git. Do not commit or paste these credentials into logs,
-issues, or chat.
+issues, or chat. The CLI intentionally accepts the password only through
+`POLESTAR_PASSWORD` (including via `.env`), not as a command-line argument.
 
 Verify the public auth endpoint and see which local values are configured:
 
@@ -128,8 +129,11 @@ cargo clippy --all-features --all-targets -- -D warnings
 cargo doc --all-features --no-deps
 ```
 
-Live telemetry cannot be tested without a real Polestar account. The unit tests
-cover current response shapes, including null telemetry groups and multiple VINs.
+Live telemetry cannot be tested without a real Polestar account. Deterministic
+local tests cover current response shapes, VIN normalization, OAuth callback
+validation, refresh responses without replacement refresh tokens, and the full
+HTTP 401 → token refresh → one-time GraphQL retry path. Real-account checks are
+manual and must not run in CI.
 
 Additional project notes are under [`docs/`](docs/), and the captured historical
 API reference is in [`resources/Polestar-API-Reference.md`](resources/Polestar-API-Reference.md).
@@ -140,6 +144,10 @@ The current GraphQL fields and OIDC flow are aligned with the maintained
 [`pypolestar`](https://github.com/pypolestar/pypolestar) implementation. The old
 verbose vehicle query is no longer considered stable; `get_vehicle_verbose()` is
 retained as a compatibility method and now returns the supported vehicle summary.
+
+`get_vehicles_verbose()` now also accepts schema drift in performance-upgrade
+payloads by probing multiple query variants, including scalar and object shapes for
+`performanceOptimization` and `performanceOptimizationSpecification`.
 
 ## License
 

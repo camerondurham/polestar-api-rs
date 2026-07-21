@@ -1,6 +1,7 @@
 //! Vehicle data models.
 
-use serde::{Deserialize, Serialize};
+use serde::{de, Deserialize, Serialize};
+use serde_json::Value;
 
 /// Complete vehicle information.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -205,7 +206,7 @@ pub struct VehicleContent {
 
     /// Performance optimization specification.
     #[serde(rename = "performanceOptimizationSpecification")]
-    pub performance_optimization_specification: Option<PerformanceOptimizationSpec>,
+    pub performance_optimization_specification: Option<PerformanceOptimizationSpecification>,
 
     /// Wheels package.
     pub wheels: Option<Package>,
@@ -440,6 +441,37 @@ pub struct Package {
 }
 
 /// Performance optimization specification.
+#[derive(Debug, Clone, Serialize)]
+#[serde(untagged)]
+pub enum PerformanceOptimizationSpecification {
+    /// Structured optimization specification object with known fields.
+    Known(PerformanceOptimizationSpec),
+
+    /// Fallback for any backend shape that does not match the known schema.
+    Other(Value),
+}
+
+impl<'de> Deserialize<'de> for PerformanceOptimizationSpecification {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        let value = Value::deserialize(deserializer)?;
+        let has_expected_fields = value.get("power").is_some()
+            || value.get("torqueMax").is_some()
+            || value.get("acceleration").is_some();
+        if !has_expected_fields {
+            return Ok(Self::Other(value));
+        }
+
+        match serde_json::from_value::<PerformanceOptimizationSpec>(value.clone()) {
+            Ok(known) => Ok(Self::Known(known)),
+            Err(_) => Ok(Self::Other(value)),
+        }
+    }
+}
+
+/// Legacy structured performance specification payload.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PerformanceOptimizationSpec {
     /// Power specification.
@@ -641,10 +673,59 @@ pub struct SoftwareInfo {
 }
 
 /// Performance optimization.
+#[derive(Debug, Clone, Serialize)]
+#[serde(untagged)]
+pub enum PerformanceOptimization {
+    /// Structured performance optimization metadata object.
+    Known(PerformanceOptimizationData),
+
+    /// Fallback for scalar or unknown backend shapes.
+    Other(Value),
+}
+
+impl<'de> Deserialize<'de> for PerformanceOptimization {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        let value = Value::deserialize(deserializer)?;
+        let has_known_fields = value.get("value").is_some()
+            || value.get("description").is_some()
+            || value.get("timestamp").is_some();
+
+        let value_object = match value.as_object() {
+            Some(value_object) => value_object,
+            None => return Ok(Self::Other(value)),
+        };
+
+        let has_unknown_fields = value_object
+            .keys()
+            .any(|field| !matches!(field.as_str(), "value" | "description" | "timestamp"));
+        if !has_known_fields {
+            return Ok(Self::Other(value));
+        }
+        if has_unknown_fields {
+            return Ok(Self::Other(value));
+        }
+
+        let known = match serde_json::from_value::<PerformanceOptimizationData>(value.clone()) {
+            Ok(known) => known,
+            Err(_) => return Ok(Self::Other(value)),
+        };
+
+        if known.value.is_none() && known.description.is_none() && known.timestamp.is_none() {
+            return Ok(Self::Other(value));
+        }
+
+        Ok(Self::Known(known))
+    }
+}
+
+/// Structured performance optimization metadata.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PerformanceOptimization {
+pub struct PerformanceOptimizationData {
     /// Is enabled.
-    pub value: Option<bool>,
+    pub value: Option<Value>,
 
     /// Description.
     pub description: Option<String>,
@@ -746,6 +827,7 @@ pub struct ElectricalEngineNumber {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn test_vehicle_deserialization() {
@@ -769,7 +851,7 @@ mod tests {
     #[test]
     fn test_current_vehicle_summary_deserialization() {
         let json = r#"{
-            "vin": "YSMYKEAE7RB000000",
+            "vin": "ABCDEFGHJKLMNPRST3",
             "internalVehicleIdentifier": "1aaeb452-700e-46f3-9899-395b6219c8a6",
             "registrationNo": "MLB007",
             "modelYear": "2024",
@@ -782,5 +864,145 @@ mod tests {
         assert_eq!(vehicle.model_name.as_deref(), Some("Polestar 3"));
         assert_eq!(vehicle.model_year.as_deref(), Some("2024"));
         assert!(vehicle.content.model.name.is_none());
+    }
+
+    #[test]
+    fn test_performance_optimization_specification_flexible_shape() {
+        let json = json!({
+            "vin": "ABCDEFGHJKLMNPRST4",
+            "content": {
+                "performanceOptimizationSpecification": true,
+                "model": {"code": "P2", "name": "Polestar 2"},
+            }
+        });
+
+        let vehicle: Vehicle = serde_json::from_value(json).unwrap();
+        assert!(matches!(
+            vehicle
+                .content
+                .performance_optimization_specification
+                .expect("spec should deserialize"),
+            PerformanceOptimizationSpecification::Other(_)
+        ));
+
+        let json = r#"{
+            "vin": "ABCDEFGHJKLMNPRST4",
+            "content": {
+                "performanceOptimizationSpecification": {
+                    "power": { "value": "201", "unit": "kW" },
+                    "torqueMax": { "value": "420", "unit": "Nm" }
+                },
+                "model": {"code":"P2","name":"Polestar 2"}
+            }
+        }"#;
+
+        let vehicle: Vehicle = serde_json::from_str(json).unwrap();
+        assert!(matches!(
+            vehicle
+                .content
+                .performance_optimization_specification
+                .expect("spec should deserialize"),
+            PerformanceOptimizationSpecification::Known(_)
+        ));
+
+        let json = json!({
+            "vin": "ABCDEFGHJKLMNPRST4",
+            "content": {
+                "performanceOptimizationSpecification": { "enabled": true },
+                "model": {"code": "P2", "name": "Polestar 2"},
+            }
+        });
+
+        let vehicle: Vehicle = serde_json::from_value(json).unwrap();
+        assert!(matches!(
+            vehicle
+                .content
+                .performance_optimization_specification
+                .expect("spec should deserialize"),
+            PerformanceOptimizationSpecification::Other(_)
+        ));
+
+        let json = json!({
+            "vin": "ABCDEFGHJKLMNPRST4",
+            "content": {
+                "performanceOptimizationSpecification": {
+                    "power": "201",
+                    "torqueMax": {"value": "420", "unit": "Nm"},
+                },
+                "model": {"code": "P2", "name": "Polestar 2"},
+            }
+        });
+
+        let vehicle: Vehicle = serde_json::from_value(json).unwrap();
+        assert!(matches!(
+            vehicle
+                .content
+                .performance_optimization_specification
+                .expect("spec should deserialize"),
+            PerformanceOptimizationSpecification::Other(_)
+        ));
+    }
+
+    #[test]
+    fn test_performance_optimization_shape() {
+        let json = json!({
+            "vin": "ABCDEFGHJKLMNPRST5",
+            "software": {
+                "performanceOptimization": {
+                    "value": true,
+                    "description": "enabled via update"
+                },
+                "version": "1.2.3"
+            }
+        });
+
+        let vehicle: Vehicle = serde_json::from_value(json).unwrap();
+        assert!(matches!(
+            vehicle
+                .software
+                .as_ref()
+                .and_then(|software| software.performance_optimization.as_ref())
+                .expect("optimization should deserialize"),
+            PerformanceOptimization::Known(_)
+        ));
+
+        let json = json!({
+            "vin": "ABCDEFGHJKLMNPRST5",
+            "software": {
+                "performanceOptimization": false,
+                "version": "1.2.3"
+            }
+        });
+
+        let vehicle: Vehicle = serde_json::from_value(json).unwrap();
+        assert!(matches!(
+            vehicle
+                .software
+                .as_ref()
+                .and_then(|software| software.performance_optimization.as_ref())
+                .expect("optimization should deserialize"),
+            PerformanceOptimization::Other(_)
+        ));
+
+        let json = json!({
+            "vin": "ABCDEFGHJKLMNPRST5",
+            "software": {
+                "performanceOptimization": {
+                    "enabled": true,
+                    "description": "feature flag"
+                },
+                "version": "1.2.3"
+            }
+        });
+
+        let vehicle: Vehicle = serde_json::from_value(json).unwrap();
+        assert!(matches!(
+            vehicle
+                .software
+                .as_ref()
+                .and_then(|software| software.performance_optimization.as_ref())
+                .expect("optimization should deserialize"),
+            PerformanceOptimization::Other(_)
+        ));
     }
 }

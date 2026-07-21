@@ -61,11 +61,271 @@ query GetConsumerCarsV2 {
 }
 "#;
 
-/// Compatibility alias for callers that used the former verbose query.
-///
-/// The upstream API no longer offers a stable verbose vehicle-information
-/// contract; this alias now returns the supported vehicle summary fields.
-pub const GET_CONSUMER_CARS_V2_VERBOSE: &str = GET_CONSUMER_CARS_V2;
+/// Verbose query for richer vehicle details, including performance-upgrade fields.
+pub const GET_CONSUMER_CARS_V2_VERBOSE: &str = r#"
+query GetConsumerCarsV2Verbose {
+    getConsumerCarsV2 {
+        vin
+        internalVehicleIdentifier
+        registrationNo
+        modelName
+        market
+        currentPlannedDeliveryDate
+        deliveryDate
+        pno34
+        modelYear
+        structureWeek
+        hasPerformancePackage
+        software {
+            performanceOptimization {
+                value
+            }
+        }
+        content {
+            images {
+                studio {
+                    url
+                    angles
+                }
+            }
+            model {
+                code
+                name
+            }
+            performanceOptimizationSpecification {
+                power {
+                    value
+                    unit
+                }
+                torqueMax {
+                    value
+                    unit
+                }
+                acceleration {
+                    value
+                    unit
+                    description
+                }
+            }
+        }
+    }
+}
+"#;
+
+/// Query attempting only top-level performance-package metadata.
+pub const GET_CONSUMER_CARS_V2_VERBOSE_HAS_PERFORMANCE: &str = r#"
+query GetConsumerCarsV2VerboseHasPerformance {
+    getConsumerCarsV2 {
+        vin
+        internalVehicleIdentifier
+        registrationNo
+        modelYear
+        modelName
+        pno34
+        structureWeek
+        hasPerformancePackage
+    }
+}
+"#;
+
+/// Query attempting performance-package metadata and software flag.
+pub const GET_CONSUMER_CARS_V2_VERBOSE_SOFTWARE: &str = r#"
+query GetConsumerCarsV2VerboseSoftware {
+    getConsumerCarsV2 {
+        vin
+        internalVehicleIdentifier
+        registrationNo
+        modelYear
+        modelName
+        pno34
+        structureWeek
+        hasPerformancePackage
+        software {
+            performanceOptimization {
+                value
+            }
+        }
+    }
+}
+"#;
+
+/// Query attempting locale-scoped performance metadata.
+pub const GET_CONSUMER_CARS_V2_VERBOSE_LOCALE: &str = r#"
+query GetConsumerCarsV2VerboseLocale {
+    getConsumerCarsV2(locale: "en_US") {
+        vin
+        internalVehicleIdentifier
+        registrationNo
+        modelName
+        market
+        currentPlannedDeliveryDate
+        deliveryDate
+        pno34
+        modelYear
+        structureWeek
+        hasPerformancePackage
+        software {
+            performanceOptimization {
+                value
+            }
+        }
+        content {
+            model {
+                code
+                name
+            }
+            performanceOptimizationSpecification {
+                power {
+                    value
+                    unit
+                }
+                torqueMax {
+                    value
+                    unit
+                }
+                acceleration {
+                    value
+                    unit
+                    description
+                }
+            }
+        }
+    }
+}
+"#;
+
+/// Query attempting software and content-only performance metadata.
+pub const GET_CONSUMER_CARS_V2_VERBOSE_NO_PERFORMANCE: &str = r#"
+query GetConsumerCarsV2VerboseNoPerformance {
+    getConsumerCarsV2 {
+        vin
+        internalVehicleIdentifier
+        registrationNo
+        modelName
+        market
+        pno34
+        structureWeek
+        software {
+            performanceOptimization {
+                value
+            }
+        }
+        content {
+            model {
+                code
+                name
+            }
+            performanceOptimizationSpecification {
+                power {
+                    value
+                    unit
+                }
+                torqueMax {
+                    value
+                    unit
+                }
+                acceleration {
+                    value
+                    unit
+                    description
+                }
+            }
+        }
+    }
+}
+"#;
+
+/// Query attempting only software metadata.
+pub const GET_CONSUMER_CARS_V2_VERBOSE_SOFTWARE_ONLY: &str = r#"
+query GetConsumerCarsV2VerboseSoftwareOnly {
+    getConsumerCarsV2 {
+        vin
+        internalVehicleIdentifier
+        registrationNo
+        modelYear
+        modelName
+        pno34
+        structureWeek
+        software {
+            performanceOptimization {
+                value
+            }
+        }
+    }
+}
+"#;
+
+/// Query attempting scalar software performance optimization field.
+pub const GET_CONSUMER_CARS_V2_VERBOSE_SOFTWARE_SCALAR: &str = r#"
+query GetConsumerCarsV2VerboseSoftwareScalar {
+    getConsumerCarsV2 {
+        vin
+        internalVehicleIdentifier
+        registrationNo
+        modelYear
+        modelName
+        pno34
+        structureWeek
+        software {
+            performanceOptimization
+        }
+    }
+}
+"#;
+
+/// Query attempting only performance optimization content metadata.
+pub const GET_CONSUMER_CARS_V2_VERBOSE_CONTENT_ONLY: &str = r#"
+query GetConsumerCarsV2VerboseContentOnly {
+    getConsumerCarsV2 {
+        vin
+        internalVehicleIdentifier
+        registrationNo
+        modelName
+        structureWeek
+        content {
+            model {
+                code
+                name
+            }
+            performanceOptimizationSpecification {
+                power {
+                    value
+                    unit
+                }
+                torqueMax {
+                    value
+                    unit
+                }
+                acceleration {
+                    value
+                    unit
+                    description
+                }
+            }
+        }
+    }
+}
+"#;
+
+/// Query attempting scalar performance optimization specification metadata.
+pub const GET_CONSUMER_CARS_V2_VERBOSE_PERFORMANCE_SPEC_SCALAR: &str = r#"
+query GetConsumerCarsV2VerbosePerformanceSpecScalar {
+    getConsumerCarsV2 {
+        vin
+        internalVehicleIdentifier
+        registrationNo
+        modelName
+        structureWeek
+        content {
+            model {
+                code
+                name
+            }
+            performanceOptimizationSpecification
+        }
+    }
+}
+"#;
 
 #[cfg(test)]
 mod tests {
@@ -90,5 +350,37 @@ mod tests {
         assert!(GET_CONSUMER_CARS_V2.contains("modelName"));
         assert!(GET_CONSUMER_CARS_V2.contains("structureWeek"));
         assert!(!GET_CONSUMER_CARS_V2.contains("serviceHistory"));
+    }
+
+    #[test]
+    fn verbose_query_includes_performance_fields() {
+        assert!(GET_CONSUMER_CARS_V2_VERBOSE.contains("performanceOptimization"));
+        assert!(GET_CONSUMER_CARS_V2_VERBOSE.contains("performanceOptimizationSpecification"));
+    }
+
+    #[test]
+    fn verbose_fallback_queries_include_expected_fields() {
+        assert!(GET_CONSUMER_CARS_V2_VERBOSE_HAS_PERFORMANCE.contains("hasPerformancePackage"));
+        assert!(
+            GET_CONSUMER_CARS_V2_VERBOSE_SOFTWARE.contains(
+                "software {\n            performanceOptimization {\n                value\n            }\n        }"
+            )
+        );
+        assert!(GET_CONSUMER_CARS_V2_VERBOSE_SOFTWARE_ONLY.contains("modelYear"));
+        assert!(GET_CONSUMER_CARS_V2_VERBOSE_SOFTWARE_ONLY.contains("pno34"));
+        assert!(GET_CONSUMER_CARS_V2_VERBOSE_SOFTWARE_SCALAR.contains("modelYear"));
+        assert!(GET_CONSUMER_CARS_V2_VERBOSE_SOFTWARE_SCALAR.contains("pno34"));
+    }
+
+    #[test]
+    fn verbose_fallback_queries_include_scalar_performance_paths() {
+        assert!(GET_CONSUMER_CARS_V2_VERBOSE_SOFTWARE_SCALAR.contains("performanceOptimization"));
+        assert!(GET_CONSUMER_CARS_V2_VERBOSE_PERFORMANCE_SPEC_SCALAR
+            .contains("performanceOptimizationSpecification"));
+    }
+
+    #[test]
+    fn locale_query_contains_locale_arg() {
+        assert!(GET_CONSUMER_CARS_V2_VERBOSE_LOCALE.contains("locale"));
     }
 }

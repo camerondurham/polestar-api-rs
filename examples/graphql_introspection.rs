@@ -4,6 +4,7 @@
 //! queries, mutations, and types in the Polestar API.
 
 use polestar_api::PolestarError;
+use polestar_api::redact::redact_str;
 use serde_json::Value;
 use std::env;
 
@@ -146,7 +147,7 @@ async fn introspect_api(username: String, password: String) -> Result<Value, Pol
             .and_then(|error| error.get("message"))
             .and_then(Value::as_str)
         {
-            return Err(PolestarError::GraphQLError(message.to_string()));
+            return Err(PolestarError::GraphQLError(redact_str(message)));
         }
     }
 
@@ -163,7 +164,9 @@ fn analyze_schema(schema: &Value) {
         None => {
             println!("WARNING: No schema data found - introspection may be disabled");
             println!("\nRaw response:");
-            println!("{}", serde_json::to_string_pretty(schema).unwrap());
+            let raw = serde_json::to_string_pretty(schema)
+                .unwrap_or_else(|_| "<failed to render schema>".to_string());
+            println!("{}", redact_str(&raw));
             return;
         }
     };

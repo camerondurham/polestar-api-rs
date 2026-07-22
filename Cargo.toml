@@ -39,6 +39,7 @@ base64 = "0.22"
 sha2 = "0.10"
 rand = "0.10"
 regex = "1.13"
+zeroize = "1.8"
 
 # Optional: Caching (feature-gated)
 moka = { version = "0.12", features = ["future"], optional = true }

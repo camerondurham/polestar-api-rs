@@ -341,7 +341,7 @@ impl AuthState {
         ];
 
         let response = client
-            .post(validated_oidc_url(&config.token_endpoint, "token endpoint")?)
+            .post(&config.token_endpoint)
             .form(&form)
             .send()
             .await?;
@@ -387,7 +387,7 @@ impl AuthState {
         ];
 
         let response = client
-            .post(validated_oidc_url(&config.token_endpoint, "token endpoint")?)
+            .post(&config.token_endpoint)
             .form(&form)
             .send()
             .await?;

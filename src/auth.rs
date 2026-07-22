@@ -707,8 +707,8 @@ mod tests {
     fn test_token_state_needs_refresh() {
         // Create expired token
         let mut state = TokenState {
-            access_token: "test".to_string(),
-            refresh_token: Some("test".to_string()),
+            access_token: "test".to_string().into(),
+            refresh_token: Some("test".to_string().into()),
             expires_at: Utc::now() + Duration::seconds(10),
             token_lifetime_secs: 600,
         };
@@ -815,8 +815,8 @@ mod tests {
     async fn invalidation_does_not_expire_a_newer_access_token() {
         let auth = AuthState::new("user".to_string(), "password".to_string());
         *auth.token.write().await = Some(TokenState {
-            access_token: "new-access".to_string(),
-            refresh_token: Some("refresh".to_string()),
+            access_token: "new-access".to_string().into(),
+            refresh_token: Some("refresh".to_string().into()),
             expires_at: Utc::now() + Duration::hours(1),
             token_lifetime_secs: 3600,
         });

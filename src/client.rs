@@ -491,8 +491,8 @@ mod tests {
             "redacted_password".to_string(),
         ));
         *auth_state.token.write().await = Some(TokenState {
-            access_token: "old-access".to_string(),
-            refresh_token: Some("old-refresh".to_string()),
+            access_token: "old-access".to_string().into(),
+            refresh_token: Some("old-refresh".to_string().into()),
             expires_at: Utc::now() + Duration::hours(1),
             token_lifetime_secs: 3600,
         });

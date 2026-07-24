@@ -396,8 +396,8 @@ mod tests {
 
         let token = auth_state.token.read().await;
         let token = token.as_ref().unwrap();
-        assert_eq!(token.access_token, "new-access");
-        assert_eq!(token.refresh_token.as_deref(), Some("old-refresh"));
+        assert_eq!(token.access_token.as_str(), "new-access");
+        assert_eq!(token.refresh_token.as_ref().unwrap().as_str(), "old-refresh");
     }
 
     #[tokio::test]

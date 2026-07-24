@@ -74,6 +74,13 @@ Fetch machine-readable telemetry:
 cargo run --features cli --bin polestar -- telemetry --json
 ```
 
+Use imperial distance units (including JSON) with `--imperial`:
+
+```bash
+cargo run --features cli --bin polestar -- telemetry --imperial
+cargo run --features cli --bin polestar -- telemetry --json --imperial
+```
+
 List account vehicles (full VINs are emitted only with `--json`):
 
 ```bash

@@ -5,6 +5,7 @@ use polestar_api::auth::AuthState;
 use polestar_api::models::telemetry::Telemetry;
 use polestar_api::models::vehicle::Vehicle;
 use polestar_api::{PolestarClient, PolestarError};
+use serde_json::Value;
 use std::error::Error;
 use std::io;
 
@@ -14,6 +15,10 @@ struct Cli {
     /// Polestar ID email; prefer the POLESTAR_USERNAME environment variable.
     #[arg(long, env = "POLESTAR_USERNAME", global = true, hide_env_values = true)]
     username: Option<String>,
+
+    /// Use imperial units for telemetry distance fields.
+    #[arg(long, global = true)]
+    imperial: bool,
 
     /// Vehicle VIN. If omitted, the only vehicle in the account is selected.
     #[arg(long, env = "POLESTAR_VIN", global = true, hide_env_values = true)]
@@ -90,7 +95,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             let client = client_from_cli(&cli)?;
             let vin = resolve_vin(&client, cli.vin.as_deref()).await?;
             let telemetry = client.get_telemetry(&vin).await?;
-            print_telemetry(&telemetry, *json)?;
+            print_telemetry(&telemetry, *json, cli.imperial)?;
         }
     }
 
@@ -189,11 +194,22 @@ fn print_vehicles(vehicles: &[Vehicle], json: bool) -> Result<(), Box<dyn Error>
     Ok(())
 }
 
-fn print_telemetry(telemetry: &Telemetry, json: bool) -> Result<(), Box<dyn Error>> {
+fn print_telemetry(telemetry: &Telemetry, json: bool, imperial: bool) -> Result<(), Box<dyn Error>> {
     if json {
-        println!("{}", serde_json::to_string_pretty(telemetry)?);
+        if imperial {
+        println!(
+                "{}",
+                serde_json::to_string_pretty(&telemetry_to_imperial_json(telemetry)?)?
+            );
+        } else {
+            println!("{}", serde_json::to_string_pretty(telemetry)?);
+        }
         return Ok(());
     }
+
+    let range_unit = if imperial { " mi" } else { " km" };
+    let service_unit = if imperial { " mi" } else { " km" };
+    let odometer_unit = if imperial { " mi" } else { " km" };
 
     println!("Battery");
     if let Some(battery) = &telemetry.battery {
@@ -206,11 +222,17 @@ fn print_telemetry(telemetry: &Telemetry, json: bool) -> Result<(), Box<dyn Erro
             battery.estimated_charging_time_minutes,
             " min",
         );
-        print_optional(
-            "  Estimated range",
-            battery.estimated_distance_to_empty_km,
-            " km",
-        );
+        let estimated_range = if imperial {
+            battery
+                .estimated_distance_to_empty_miles
+                .map(|miles| miles as f64)
+                .or_else(|| battery.estimated_distance_to_empty_km.map(kilometers_to_miles))
+        } else {
+            battery
+                .estimated_distance_to_empty_km
+                .map(|kilometers| kilometers as f64)
+        };
+        print_optional_float("  Estimated range", estimated_range, range_unit);
     } else {
         println!("  No sample returned");
     }
@@ -221,7 +243,12 @@ fn print_telemetry(telemetry: &Telemetry, json: bool) -> Result<(), Box<dyn Erro
         .as_ref()
         .and_then(|odometer| odometer.odometer_meters)
     {
-        println!("  {:.1} km", meters as f64 / 1000.0);
+        let distance = if imperial {
+            meters_to_miles(meters)
+        } else {
+            meters as f64 / 1000.0
+        };
+        println!("  {:.1}{odometer_unit}", distance);
     } else {
         println!("  No sample returned");
     }
@@ -232,11 +259,12 @@ fn print_telemetry(telemetry: &Telemetry, json: bool) -> Result<(), Box<dyn Erro
             println!("  Service: {warning}");
         }
         print_optional("  Days to service", health.days_to_service, "");
-        print_optional(
-            "  Distance to service",
-            health.distance_to_service_km,
-            " km",
-        );
+        let service_distance = if imperial {
+            health.distance_to_service_km.map(kilometers_to_miles)
+        } else {
+            health.distance_to_service_km.map(|kilometers| kilometers as f64)
+        };
+        print_optional_float("  Distance to service", service_distance, service_unit);
     } else {
         println!("  No sample returned");
     }
@@ -244,10 +272,76 @@ fn print_telemetry(telemetry: &Telemetry, json: bool) -> Result<(), Box<dyn Erro
     Ok(())
 }
 
+fn print_optional_float(label: &str, value: Option<f64>, suffix: &str) {
+    if let Some(value) = value {
+        println!("{label}: {value:.1}{suffix}");
+    }
+}
+
 fn print_optional(label: &str, value: Option<i64>, suffix: &str) {
     if let Some(value) = value {
         println!("{label}: {value}{suffix}");
     }
+}
+
+fn kilometers_to_miles(km: i64) -> f64 {
+    km as f64 * 0.621_371_192_f64
+}
+
+fn meters_to_miles(meters: i64) -> f64 {
+    meters as f64 / 1609.344_f64
+}
+
+fn kilometers_to_miles_i64(km: i64) -> i64 {
+    kilometers_to_miles(km).round() as i64
+}
+
+fn meters_to_miles_i64(meters: i64) -> i64 {
+    meters_to_miles(meters).round() as i64
+}
+
+fn telemetry_to_imperial_json(telemetry: &Telemetry) -> Result<Value, serde_json::Error> {
+    let mut telemetry = serde_json::to_value(telemetry)?;
+    if let Some(battery) = telemetry.get_mut("battery").and_then(Value::as_object_mut) {
+        if let Some(miles) = battery
+            .get("estimatedDistanceToEmptyMiles")
+            .and_then(Value::as_i64)
+        {
+            battery.insert("estimatedDistanceToEmptyMiles".into(), Value::from(miles));
+        } else if let Some(km) = battery
+            .get("estimatedDistanceToEmptyKm")
+            .and_then(Value::as_i64)
+        {
+            battery.insert(
+                "estimatedDistanceToEmptyMiles".into(),
+                Value::from(kilometers_to_miles_i64(km)),
+            );
+        }
+    }
+
+    if let Some(health) = telemetry.get_mut("health").and_then(Value::as_object_mut) {
+        if let Some(km) = health.get("distanceToServiceKm").and_then(Value::as_i64) {
+            health.insert(
+                "distanceToServiceMiles".into(),
+                Value::from(kilometers_to_miles_i64(km)),
+            );
+        }
+    }
+
+    if let Some(odometer) = telemetry.get_mut("odometer").and_then(Value::as_object_mut) {
+        if let Some(meters) = odometer.get("odometerMeters").and_then(Value::as_i64) {
+            odometer.insert(
+                "odometerMiles".into(),
+                Value::from(meters_to_miles_i64(meters)),
+            );
+        }
+    }
+
+    if let Some(obj) = telemetry.as_object_mut() {
+        obj.insert("distanceUnits".into(), Value::from("imperial"));
+    }
+
+    Ok(telemetry)
 }
 
 fn verbose_fields_unsupported(error: &PolestarError) -> bool {

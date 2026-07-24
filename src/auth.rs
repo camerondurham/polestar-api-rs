@@ -263,7 +263,7 @@ impl AuthState {
         ];
 
         let mut response = authorization_client
-            .post(&resume_url)
+            .post(resume_url.clone())
             .query(&params)
             .form(&form)
             .send()
@@ -294,7 +294,7 @@ impl AuthState {
             let confirmation_form = [("pf.submit", "true"), ("subject", uid.as_str())];
 
             response = authorization_client
-                .post(&resume_url)
+                .post(resume_url.clone())
                 .query(&params)
                 .form(&confirmation_form)
                 .send()
@@ -431,7 +431,7 @@ impl AuthState {
         let Some(token) = token.as_mut() else {
             return false;
         };
-        if token.access_token != rejected_access_token {
+        if token.access_token.as_str() != rejected_access_token {
             return false;
         }
 

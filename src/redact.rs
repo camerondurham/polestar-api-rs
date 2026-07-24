@@ -161,7 +161,7 @@ mod tests {
 
     #[test]
     fn redacts_lowercase_vin() {
-        let input = "vin=abcd1234abcdefghi";
+        let input = "vin=abcd1234abcdefgh1";
         let output = redact_str(input);
         assert_eq!(output, "vin=[REDACTED_VIN]");
     }

@@ -253,7 +253,7 @@ fn print_telemetry(
         .and_then(|odometer| odometer.odometer_meters)
     {
         let distance = if imperial {
-            meters_to_miles(meters)
+            meters_to_miles(meters as f64)
         } else {
             meters as f64 / 1000.0
         };

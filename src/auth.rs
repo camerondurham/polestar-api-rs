@@ -195,7 +195,10 @@ impl AuthState {
         ];
 
         let response = client
-            .get(validated_oidc_url(&config.authorization_endpoint, "authorization endpoint")?)
+            .get(validated_oidc_url(
+                &config.authorization_endpoint,
+                "authorization endpoint",
+            )?)
             .query(&params)
             .send()
             .await?;
@@ -540,17 +543,16 @@ fn resolve_resume_url(raw_resume_path: &str) -> Result<reqwest::Url> {
 
     let candidate = raw_resume_path.trim();
     let candidate_url = if candidate.starts_with('/') {
-        base_url.join(candidate).map_err(|_| {
-            PolestarError::AuthError("Invalid OIDC resume path".to_string())
-        })?
+        base_url
+            .join(candidate)
+            .map_err(|_| PolestarError::AuthError("Invalid OIDC resume path".to_string()))?
     } else if candidate.starts_with("http://") || candidate.starts_with("https://") {
-        reqwest::Url::parse(candidate).map_err(|error| {
-            PolestarError::AuthError(format!("Invalid resume URL: {error}"))
-        })?
+        reqwest::Url::parse(candidate)
+            .map_err(|error| PolestarError::AuthError(format!("Invalid resume URL: {error}")))?
     } else {
-        base_url.join(&format!("/{candidate}")).map_err(|_| {
-            PolestarError::AuthError("Invalid OIDC resume path".to_string())
-        })?
+        base_url
+            .join(&format!("/{candidate}"))
+            .map_err(|_| PolestarError::AuthError("Invalid OIDC resume path".to_string()))?
     };
 
     validate_oidc_origin(&candidate_url, "resume URL")?;
@@ -558,9 +560,8 @@ fn resolve_resume_url(raw_resume_path: &str) -> Result<reqwest::Url> {
 }
 
 fn validated_oidc_url(raw_url: &str, endpoint_name: &str) -> Result<reqwest::Url> {
-    let parsed = reqwest::Url::parse(raw_url).map_err(|error| {
-        PolestarError::AuthError(format!("Invalid {endpoint_name}: {error}"))
-    })?;
+    let parsed = reqwest::Url::parse(raw_url)
+        .map_err(|error| PolestarError::AuthError(format!("Invalid {endpoint_name}: {error}")))?;
     validate_oidc_origin(&parsed, endpoint_name)?;
     Ok(parsed)
 }

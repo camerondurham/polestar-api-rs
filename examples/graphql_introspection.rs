@@ -3,8 +3,8 @@
 //! This tool performs GraphQL introspection to discover all available
 //! queries, mutations, and types in the Polestar API.
 
-use polestar_api::PolestarError;
 use polestar_api::redact::redact_str;
+use polestar_api::PolestarError;
 use serde_json::Value;
 use std::env;
 

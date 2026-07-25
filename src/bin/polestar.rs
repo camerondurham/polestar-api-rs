@@ -194,10 +194,14 @@ fn print_vehicles(vehicles: &[Vehicle], json: bool) -> Result<(), Box<dyn Error>
     Ok(())
 }
 
-fn print_telemetry(telemetry: &Telemetry, json: bool, imperial: bool) -> Result<(), Box<dyn Error>> {
+fn print_telemetry(
+    telemetry: &Telemetry,
+    json: bool,
+    imperial: bool,
+) -> Result<(), Box<dyn Error>> {
     if json {
         if imperial {
-        println!(
+            println!(
                 "{}",
                 serde_json::to_string_pretty(&telemetry_to_imperial_json(telemetry)?)?
             );
@@ -226,7 +230,11 @@ fn print_telemetry(telemetry: &Telemetry, json: bool, imperial: bool) -> Result<
             battery
                 .estimated_distance_to_empty_miles
                 .map(|miles| miles as f64)
-                .or_else(|| battery.estimated_distance_to_empty_km.map(kilometers_to_miles))
+                .or_else(|| {
+                    battery
+                        .estimated_distance_to_empty_km
+                        .map(kilometers_to_miles)
+                })
         } else {
             battery
                 .estimated_distance_to_empty_km
@@ -262,7 +270,9 @@ fn print_telemetry(telemetry: &Telemetry, json: bool, imperial: bool) -> Result<
         let service_distance = if imperial {
             health.distance_to_service_km.map(kilometers_to_miles)
         } else {
-            health.distance_to_service_km.map(|kilometers| kilometers as f64)
+            health
+                .distance_to_service_km
+                .map(|kilometers| kilometers as f64)
         };
         print_optional_float("  Distance to service", service_distance, service_unit);
     } else {

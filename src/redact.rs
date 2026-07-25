@@ -16,9 +16,7 @@ fn email_re() -> &'static Regex {
 
 fn vin_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        Regex::new(r"(?i)\b[A-HJ-NPR-Z0-9]{17}\b").expect("vin regex should compile")
-    })
+    RE.get_or_init(|| Regex::new(r"(?i)\b[A-HJ-NPR-Z0-9]{17}\b").expect("vin regex should compile"))
 }
 
 fn bearer_re() -> &'static Regex {

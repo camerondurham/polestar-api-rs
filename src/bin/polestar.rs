@@ -42,7 +42,7 @@ enum Command {
         #[arg(long)]
         verbose: bool,
 
-        /// Fail the command if verbose fields are not supported.
+        /// Fail if verbose mode probes are unsupported; this also enables verbose probing.
         #[arg(long)]
         strict_verbose: bool,
     },
@@ -71,7 +71,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
             strict_verbose,
         } => {
             let client = client_from_cli(&cli)?;
-            let vehicles = if *verbose {
+            let want_verbose = *verbose || *strict_verbose;
+            let vehicles = if want_verbose {
                 if *strict_verbose {
                     client.get_vehicles_verbose().await?
                 } else {
@@ -233,7 +234,7 @@ fn print_telemetry(
                 .or_else(|| {
                     battery
                         .estimated_distance_to_empty_km
-                        .map(kilometers_to_miles)
+                        .map(|kilometers| kilometers_to_miles(kilometers as f64))
                 })
         } else {
             battery
@@ -268,7 +269,9 @@ fn print_telemetry(
         }
         print_optional("  Days to service", health.days_to_service, "");
         let service_distance = if imperial {
-            health.distance_to_service_km.map(kilometers_to_miles)
+            health
+                .distance_to_service_km
+                .map(|kilometers| kilometers_to_miles(kilometers as f64))
         } else {
             health
                 .distance_to_service_km
@@ -294,20 +297,16 @@ fn print_optional(label: &str, value: Option<i64>, suffix: &str) {
     }
 }
 
-fn kilometers_to_miles(km: i64) -> f64 {
-    km as f64 * 0.621_371_192_f64
+fn kilometers_to_miles(km: f64) -> f64 {
+    km * 0.621_371_192_f64
 }
 
-fn meters_to_miles(meters: i64) -> f64 {
-    meters as f64 / 1609.344_f64
+fn meters_to_miles(meters: f64) -> f64 {
+    meters / 1609.344_f64
 }
 
-fn kilometers_to_miles_i64(km: i64) -> i64 {
-    kilometers_to_miles(km).round() as i64
-}
-
-fn meters_to_miles_i64(meters: i64) -> i64 {
-    meters_to_miles(meters).round() as i64
+fn value_to_f64(value: &Value) -> Option<f64> {
+    value.as_f64()
 }
 
 fn telemetry_to_imperial_json(telemetry: &Telemetry) -> Result<Value, serde_json::Error> {
@@ -315,35 +314,32 @@ fn telemetry_to_imperial_json(telemetry: &Telemetry) -> Result<Value, serde_json
     if let Some(battery) = telemetry.get_mut("battery").and_then(Value::as_object_mut) {
         if let Some(miles) = battery
             .get("estimatedDistanceToEmptyMiles")
-            .and_then(Value::as_i64)
+            .and_then(value_to_f64)
         {
             battery.insert("estimatedDistanceToEmptyMiles".into(), Value::from(miles));
         } else if let Some(km) = battery
             .get("estimatedDistanceToEmptyKm")
-            .and_then(Value::as_i64)
+            .and_then(value_to_f64)
         {
             battery.insert(
                 "estimatedDistanceToEmptyMiles".into(),
-                Value::from(kilometers_to_miles_i64(km)),
+                Value::from(kilometers_to_miles(km)),
             );
         }
     }
 
     if let Some(health) = telemetry.get_mut("health").and_then(Value::as_object_mut) {
-        if let Some(km) = health.get("distanceToServiceKm").and_then(Value::as_i64) {
+        if let Some(km) = health.get("distanceToServiceKm").and_then(value_to_f64) {
             health.insert(
                 "distanceToServiceMiles".into(),
-                Value::from(kilometers_to_miles_i64(km)),
+                Value::from(kilometers_to_miles(km)),
             );
         }
     }
 
     if let Some(odometer) = telemetry.get_mut("odometer").and_then(Value::as_object_mut) {
-        if let Some(meters) = odometer.get("odometerMeters").and_then(Value::as_i64) {
-            odometer.insert(
-                "odometerMiles".into(),
-                Value::from(meters_to_miles_i64(meters)),
-            );
+        if let Some(meters) = odometer.get("odometerMeters").and_then(value_to_f64) {
+            odometer.insert("odometerMiles".into(), Value::from(meters_to_miles(meters)));
         }
     }
 

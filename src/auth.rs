@@ -381,7 +381,7 @@ impl AuthState {
                 .and_then(|token| token.refresh_token.clone())
                 .ok_or_else(|| PolestarError::AuthError("No refresh token available".to_string()))?
         };
-        let refresh_token = refresh_token.to_string();
+        let refresh_token = Zeroizing::new(refresh_token);
 
         let form = [
             ("grant_type", "refresh_token"),
@@ -412,7 +412,7 @@ impl AuthState {
 
         let mut token_response: TokenResponse = response.json().await?;
         if token_response.refresh_token.is_none() {
-            token_response.refresh_token = Some(refresh_token);
+            token_response.refresh_token = Some(refresh_token.to_string());
         }
         let token_state = TokenState::from_response(token_response);
 
@@ -581,6 +581,11 @@ fn validate_oidc_origin(url: &reqwest::Url, context: &str) -> Result<()> {
     if !url.username().is_empty() || url.password().is_some() {
         return Err(PolestarError::AuthError(format!(
             "{context} must not include credentials",
+        )));
+    }
+    if url.port_or_known_default() != Some(443) {
+        return Err(PolestarError::AuthError(format!(
+            "{context} must use the default HTTPS port 443",
         )));
     }
 

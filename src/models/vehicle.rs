@@ -457,15 +457,35 @@ impl<'de> Deserialize<'de> for PerformanceOptimizationSpecification {
         D: de::Deserializer<'de>,
     {
         let value = Value::deserialize(deserializer)?;
-        let has_expected_fields = value.get("power").is_some()
-            || value.get("torqueMax").is_some()
-            || value.get("acceleration").is_some();
+        let Value::Object(object) = &value else {
+            return Ok(Self::Other(value));
+        };
+        let has_expected_fields = object.get("power").is_some()
+            || object.get("torqueMax").is_some()
+            || object.get("acceleration").is_some();
         if !has_expected_fields {
             return Ok(Self::Other(value));
         }
 
         match serde_json::from_value::<PerformanceOptimizationSpec>(value.clone()) {
-            Ok(known) => Ok(Self::Known(known)),
+            Ok(known) => {
+                let normalized = serde_json::to_value(&known).unwrap_or(Value::Null);
+                let Value::Object(normalized) = normalized else {
+                    return Ok(Self::Other(value));
+                };
+
+                if object.len() != normalized.len() {
+                    return Ok(Self::Other(value));
+                }
+
+                for (key, value) in object {
+                    if normalized.get(key) != Some(value) {
+                        return Ok(Self::Other(value.clone()));
+                    }
+                }
+
+                Ok(Self::Known(known))
+            }
             Err(_) => Ok(Self::Other(value)),
         }
     }

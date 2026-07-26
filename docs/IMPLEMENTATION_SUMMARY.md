@@ -279,3 +279,5 @@ This implementation adds significant functionality to the polestar-api-rs librar
 - `resources/Polestar-API-Reference.md` - API reference documentation
 - pypolestar repository: https://github.com/pypolestar/pypolestar
 - Example programs in `examples/` directory
+
+<!-- codex-review-refresh -->

@@ -474,13 +474,9 @@ impl<'de> Deserialize<'de> for PerformanceOptimizationSpecification {
                     return Ok(Self::Other(value));
                 };
 
-                if object.len() != normalized.len() {
-                    return Ok(Self::Other(value));
-                }
-
-                for (key, value) in object {
-                    if normalized.get(key) != Some(value) {
-                        return Ok(Self::Other(value.clone()));
+                for (key, object_value) in object {
+                    if normalized.get(key) != Some(object_value) {
+                        return Ok(Self::Other(value));
                     }
                 }
 
@@ -954,13 +950,22 @@ mod tests {
         });
 
         let vehicle: Vehicle = serde_json::from_value(json).unwrap();
+        let spec = &vehicle
+            .content
+            .performance_optimization_specification
+            .expect("spec should deserialize");
         assert!(matches!(
-            vehicle
-                .content
-                .performance_optimization_specification
-                .expect("spec should deserialize"),
+            spec,
             PerformanceOptimizationSpecification::Other(_)
         ));
+        match spec {
+            PerformanceOptimizationSpecification::Other(other) => {
+                assert!(other.get("power").is_some());
+                assert!(other.get("torqueMax").is_some());
+                assert_eq!(other.get("power").unwrap().as_str(), Some("201"));
+            }
+            _ => unreachable!(),
+        }
     }
 
     #[test]

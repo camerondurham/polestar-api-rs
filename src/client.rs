@@ -85,12 +85,12 @@ impl PolestarClient {
     pub async fn get_vehicles_verbose(&self) -> Result<Vec<Vehicle>> {
         let queries = [
             graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE,
+            graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_SOFTWARE,
             graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_NO_PERFORMANCE,
             graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_CONTENT_ONLY,
             graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_LOCALE,
             graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_HAS_PERFORMANCE,
             graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_PERFORMANCE_SPEC_SCALAR,
-            graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_SOFTWARE,
             graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_SOFTWARE_ONLY,
             graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_SOFTWARE_SCALAR,
         ];

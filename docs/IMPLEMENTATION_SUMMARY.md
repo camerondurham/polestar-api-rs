@@ -1,9 +1,10 @@
 # Implementation Summary
 
 > **Historical document:** This records the November 2025 verbose-query
-> experiment. The unsupported verbose query and models were subsequently
-> removed; `get_vehicle_verbose()` now delegates to the supported vehicle
-> summary. See the README for the current API.
+> experiment. Verbose-query models remain available and are now used through an
+> opportunistic probing strategy in `get_vehicles_verbose()` and
+> `get_vehicle_verbose()`, with fallback to the stable vehicle summary when the
+> richer variants are unavailable.
 
 Date: 2025-11-27
 
@@ -278,3 +279,5 @@ This implementation adds significant functionality to the polestar-api-rs librar
 - `resources/Polestar-API-Reference.md` - API reference documentation
 - pypolestar repository: https://github.com/pypolestar/pypolestar
 - Example programs in `examples/` directory
+
+<!-- codex-review-refresh -->

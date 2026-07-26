@@ -16,7 +16,7 @@ fn email_re() -> &'static Regex {
 
 fn vin_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"\b[A-HJ-NPR-Z0-9]{17}\b").expect("vin regex should compile"))
+    RE.get_or_init(|| Regex::new(r"(?i)\b[A-HJ-NPR-Z0-9]{17}\b").expect("vin regex should compile"))
 }
 
 fn bearer_re() -> &'static Regex {
@@ -153,6 +153,13 @@ mod tests {
     #[test]
     fn redacts_vin() {
         let input = "vin=ABCD1234ABCDEFGH1";
+        let output = redact_str(input);
+        assert_eq!(output, "vin=[REDACTED_VIN]");
+    }
+
+    #[test]
+    fn redacts_lowercase_vin() {
+        let input = "vin=abcd1234abcdefgh1";
         let output = redact_str(input);
         assert_eq!(output, "vin=[REDACTED_VIN]");
     }

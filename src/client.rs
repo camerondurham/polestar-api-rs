@@ -86,13 +86,13 @@ impl PolestarClient {
         let queries = [
             graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE,
             graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_SOFTWARE,
-            graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_SOFTWARE_ONLY,
-            graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_SOFTWARE_SCALAR,
-            graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_CONTENT_ONLY,
-            graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_PERFORMANCE_SPEC_SCALAR,
             graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_NO_PERFORMANCE,
+            graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_CONTENT_ONLY,
             graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_LOCALE,
             graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_HAS_PERFORMANCE,
+            graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_PERFORMANCE_SPEC_SCALAR,
+            graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_SOFTWARE_ONLY,
+            graphql::queries::GET_CONSUMER_CARS_V2_VERBOSE_SOFTWARE_SCALAR,
         ];
 
         let mut first_error: Option<crate::error::PolestarError> = None;
@@ -396,8 +396,11 @@ mod tests {
 
         let token = auth_state.token.read().await;
         let token = token.as_ref().unwrap();
-        assert_eq!(token.access_token, "new-access");
-        assert_eq!(token.refresh_token.as_deref(), Some("old-refresh"));
+        assert_eq!(token.access_token.as_str(), "new-access");
+        assert_eq!(
+            token.refresh_token.as_ref().unwrap().as_str(),
+            "old-refresh"
+        );
     }
 
     #[tokio::test]
@@ -491,8 +494,8 @@ mod tests {
             "redacted_password".to_string(),
         ));
         *auth_state.token.write().await = Some(TokenState {
-            access_token: "old-access".to_string(),
-            refresh_token: Some("old-refresh".to_string()),
+            access_token: "old-access".to_string().into(),
+            refresh_token: Some("old-refresh".to_string().into()),
             expires_at: Utc::now() + Duration::hours(1),
             token_lifetime_secs: 3600,
         });

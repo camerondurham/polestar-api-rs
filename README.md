@@ -74,6 +74,13 @@ Fetch machine-readable telemetry:
 cargo run --features cli --bin polestar -- telemetry --json
 ```
 
+Use imperial distance units (including JSON) with `--imperial`:
+
+```bash
+cargo run --features cli --bin polestar -- telemetry --imperial
+cargo run --features cli --bin polestar -- telemetry --json --imperial
+```
+
 List account vehicles (full VINs are emitted only with `--json`):
 
 ```bash
@@ -142,8 +149,9 @@ API reference is in [`resources/Polestar-API-Reference.md`](resources/Polestar-A
 
 The current GraphQL fields and OIDC flow are aligned with the maintained
 [`pypolestar`](https://github.com/pypolestar/pypolestar) implementation. The old
-verbose vehicle query is no longer considered stable; `get_vehicle_verbose()` is
-retained as a compatibility method and now returns the supported vehicle summary.
+verbose query path is now probed opportunistically; `get_vehicle_verbose()` still
+supports fallback behavior and returns verbose vehicle payloads when a supported
+query variant succeeds.
 
 `get_vehicles_verbose()` now also accepts schema drift in performance-upgrade
 payloads by probing multiple query variants, including scalar and object shapes for

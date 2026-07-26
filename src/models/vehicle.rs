@@ -457,15 +457,31 @@ impl<'de> Deserialize<'de> for PerformanceOptimizationSpecification {
         D: de::Deserializer<'de>,
     {
         let value = Value::deserialize(deserializer)?;
-        let has_expected_fields = value.get("power").is_some()
-            || value.get("torqueMax").is_some()
-            || value.get("acceleration").is_some();
+        let Value::Object(object) = &value else {
+            return Ok(Self::Other(value));
+        };
+        let has_expected_fields = object.get("power").is_some()
+            || object.get("torqueMax").is_some()
+            || object.get("acceleration").is_some();
         if !has_expected_fields {
             return Ok(Self::Other(value));
         }
 
         match serde_json::from_value::<PerformanceOptimizationSpec>(value.clone()) {
-            Ok(known) => Ok(Self::Known(known)),
+            Ok(known) => {
+                let normalized = serde_json::to_value(&known).unwrap_or(Value::Null);
+                let Value::Object(normalized) = normalized else {
+                    return Ok(Self::Other(value));
+                };
+
+                for (key, object_value) in object {
+                    if normalized.get(key) != Some(object_value) {
+                        return Ok(Self::Other(value));
+                    }
+                }
+
+                Ok(Self::Known(known))
+            }
             Err(_) => Ok(Self::Other(value)),
         }
     }
@@ -934,13 +950,22 @@ mod tests {
         });
 
         let vehicle: Vehicle = serde_json::from_value(json).unwrap();
+        let spec = &vehicle
+            .content
+            .performance_optimization_specification
+            .expect("spec should deserialize");
         assert!(matches!(
-            vehicle
-                .content
-                .performance_optimization_specification
-                .expect("spec should deserialize"),
+            spec,
             PerformanceOptimizationSpecification::Other(_)
         ));
+        match spec {
+            PerformanceOptimizationSpecification::Other(other) => {
+                assert!(other.get("power").is_some());
+                assert!(other.get("torqueMax").is_some());
+                assert_eq!(other.get("power").unwrap().as_str(), Some("201"));
+            }
+            _ => unreachable!(),
+        }
     }
 
     #[test]

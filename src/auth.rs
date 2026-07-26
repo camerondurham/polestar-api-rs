@@ -8,6 +8,7 @@ use sha2::{Digest, Sha256};
 use std::fmt;
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
+use zeroize::Zeroizing;
 
 use crate::error::{PolestarError, Result};
 use crate::redact::redact_str;
@@ -16,6 +17,7 @@ use crate::redact::redact_str;
 pub const OIDC_PROVIDER_BASE_URL: &str = "https://polestarid.eu.polestar.com";
 /// Public client identifier used by the Polestar web application.
 pub const OIDC_CLIENT_ID: &str = "l3oopkc_10";
+const OIDC_PROVIDER_HOST: &str = "polestarid.eu.polestar.com";
 /// OAuth callback used by the Polestar web application.
 pub const OIDC_REDIRECT_URI: &str = "https://www.polestar.com/sign-in-callback";
 /// OAuth scopes required by the vehicle API.
@@ -67,9 +69,9 @@ impl fmt::Debug for TokenResponse {
 #[derive(Clone)]
 pub struct TokenState {
     /// Short-lived bearer token used for API requests.
-    pub access_token: String,
+    pub access_token: Zeroizing<String>,
     /// Long-lived token used to refresh the access token, when one was issued.
-    pub refresh_token: Option<String>,
+    pub refresh_token: Option<Zeroizing<String>>,
     /// Absolute access-token expiry time.
     pub expires_at: DateTime<Utc>,
     /// Original access-token lifetime in seconds.
@@ -95,8 +97,8 @@ impl TokenState {
     /// Build token state and calculate its absolute expiry time.
     pub fn from_response(response: TokenResponse) -> Self {
         Self {
-            access_token: response.access_token,
-            refresh_token: response.refresh_token,
+            access_token: Zeroizing::new(response.access_token),
+            refresh_token: response.refresh_token.map(Zeroizing::new),
             expires_at: Utc::now() + Duration::seconds(response.expires_in),
             token_lifetime_secs: response.expires_in,
         }
@@ -117,8 +119,8 @@ impl TokenState {
 
 /// Authentication state manager
 pub struct AuthState {
-    username: String,
-    password: String,
+    username: Zeroizing<String>,
+    password: Zeroizing<String>,
     /// Current token state
     pub token: Arc<RwLock<Option<TokenState>>>,
     /// OIDC configuration
@@ -130,8 +132,8 @@ impl AuthState {
     /// Create new auth state with credentials
     pub fn new(username: String, password: String) -> Self {
         Self {
-            username,
-            password,
+            username: Zeroizing::new(username),
+            password: Zeroizing::new(password),
             token: Arc::new(RwLock::new(None)),
             oidc_config: Arc::new(RwLock::new(None)),
             auth_lock: Mutex::new(()),
@@ -193,7 +195,10 @@ impl AuthState {
         ];
 
         let response = client
-            .get(&config.authorization_endpoint)
+            .get(validated_oidc_url(
+                &config.authorization_endpoint,
+                "authorization endpoint",
+            )?)
             .query(&params)
             .send()
             .await?;
@@ -240,7 +245,7 @@ impl AuthState {
         let resume_path = self
             .get_resume_path(&authorization_client, &config, &state, &code_challenge)
             .await?;
-        let resume_url = format!("{}{}", OIDC_PROVIDER_BASE_URL, resume_path);
+        let resume_url = resolve_resume_url(&resume_path)?;
 
         // Build query params for resume URL
         let params = [
@@ -261,7 +266,7 @@ impl AuthState {
         ];
 
         let mut response = authorization_client
-            .post(&resume_url)
+            .post(resume_url.clone())
             .query(&params)
             .form(&form)
             .send()
@@ -292,7 +297,7 @@ impl AuthState {
             let confirmation_form = [("pf.submit", "true"), ("subject", uid.as_str())];
 
             response = authorization_client
-                .post(&resume_url)
+                .post(resume_url.clone())
                 .query(&params)
                 .form(&confirmation_form)
                 .send()
@@ -376,11 +381,12 @@ impl AuthState {
                 .and_then(|token| token.refresh_token.clone())
                 .ok_or_else(|| PolestarError::AuthError("No refresh token available".to_string()))?
         };
+        let refresh_token = Zeroizing::new(refresh_token);
 
         let form = [
             ("grant_type", "refresh_token"),
             ("client_id", OIDC_CLIENT_ID),
-            ("refresh_token", &refresh_token),
+            ("refresh_token", refresh_token.as_str()),
         ];
 
         let response = client
@@ -406,7 +412,7 @@ impl AuthState {
 
         let mut token_response: TokenResponse = response.json().await?;
         if token_response.refresh_token.is_none() {
-            token_response.refresh_token = Some(refresh_token);
+            token_response.refresh_token = Some(refresh_token.to_string());
         }
         let token_state = TokenState::from_response(token_response);
 
@@ -428,7 +434,7 @@ impl AuthState {
         let Some(token) = token.as_mut() else {
             return false;
         };
-        if token.access_token != rejected_access_token {
+        if token.access_token.as_str() != rejected_access_token {
             return false;
         }
 
@@ -456,7 +462,7 @@ impl AuthState {
         if self.is_token_valid().await && !self.needs_token_refresh().await {
             let token = self.token.read().await;
             if let Some(token) = token.as_ref() {
-                return Ok(token.access_token.clone());
+                return Ok(token.access_token.to_string());
             }
         }
 
@@ -467,7 +473,7 @@ impl AuthState {
         if self.is_token_valid().await && !self.needs_token_refresh().await {
             let token = self.token.read().await;
             if let Some(token) = token.as_ref() {
-                return Ok(token.access_token.clone());
+                return Ok(token.access_token.to_string());
             }
         }
 
@@ -479,7 +485,7 @@ impl AuthState {
             .is_some_and(|token| token.refresh_token.is_some());
         if can_refresh {
             match self.refresh_token(client).await {
-                Ok(state) => return Ok(state.access_token),
+                Ok(state) => return Ok(state.access_token.to_string()),
                 Err(PolestarError::TokenExpired) => {
                     let mut token = self.token.write().await;
                     *token = None;
@@ -496,7 +502,7 @@ impl AuthState {
             match self.get_authorization_code(client).await {
                 Ok((code, verifier)) => {
                     match self.exchange_code_for_token(client, &code, &verifier).await {
-                        Ok(token_state) => return Ok(token_state.access_token),
+                        Ok(token_state) => return Ok(token_state.access_token.to_string()),
                         Err(e) => {
                             last_error = Some(e);
                             if attempt < max_retries - 1 {
@@ -529,6 +535,61 @@ fn build_authorization_client() -> Result<reqwest::Client> {
         .timeout(std::time::Duration::from_secs(30))
         .user_agent(concat!("polestar-api-rs/", env!("CARGO_PKG_VERSION")))
         .build()?)
+}
+
+fn resolve_resume_url(raw_resume_path: &str) -> Result<reqwest::Url> {
+    let base_url = reqwest::Url::parse(OIDC_PROVIDER_BASE_URL)
+        .map_err(|_| PolestarError::AuthError("Invalid OIDC base URL".to_string()))?;
+
+    let candidate = raw_resume_path.trim();
+    let candidate_url = if candidate.starts_with('/') {
+        base_url
+            .join(candidate)
+            .map_err(|_| PolestarError::AuthError("Invalid OIDC resume path".to_string()))?
+    } else if candidate.starts_with("http://") || candidate.starts_with("https://") {
+        reqwest::Url::parse(candidate)
+            .map_err(|error| PolestarError::AuthError(format!("Invalid resume URL: {error}")))?
+    } else {
+        base_url
+            .join(&format!("/{candidate}"))
+            .map_err(|_| PolestarError::AuthError("Invalid OIDC resume path".to_string()))?
+    };
+
+    validate_oidc_origin(&candidate_url, "resume URL")?;
+    Ok(candidate_url)
+}
+
+fn validated_oidc_url(raw_url: &str, endpoint_name: &str) -> Result<reqwest::Url> {
+    let parsed = reqwest::Url::parse(raw_url)
+        .map_err(|error| PolestarError::AuthError(format!("Invalid {endpoint_name}: {error}")))?;
+    validate_oidc_origin(&parsed, endpoint_name)?;
+    Ok(parsed)
+}
+
+fn validate_oidc_origin(url: &reqwest::Url, context: &str) -> Result<()> {
+    if url.scheme() != "https" {
+        return Err(PolestarError::AuthError(format!(
+            "{context} must use HTTPS",
+        )));
+    }
+    if url.host_str() != Some(OIDC_PROVIDER_HOST) {
+        return Err(PolestarError::AuthError(format!(
+            "{context} must target {OIDC_PROVIDER_HOST}, got {}",
+            url.host_str().unwrap_or("unknown")
+        )));
+    }
+    if !url.username().is_empty() || url.password().is_some() {
+        return Err(PolestarError::AuthError(format!(
+            "{context} must not include credentials",
+        )));
+    }
+    if url.port_or_known_default() != Some(443) {
+        return Err(PolestarError::AuthError(format!(
+            "{context} must use the default HTTPS port 443",
+        )));
+    }
+
+    Ok(())
 }
 
 fn redirect_target(response: &reqwest::Response) -> Result<reqwest::Url> {
@@ -652,8 +713,8 @@ mod tests {
     fn test_token_state_needs_refresh() {
         // Create expired token
         let mut state = TokenState {
-            access_token: "test".to_string(),
-            refresh_token: Some("test".to_string()),
+            access_token: "test".to_string().into(),
+            refresh_token: Some("test".to_string().into()),
             expires_at: Utc::now() + Duration::seconds(10),
             token_lifetime_secs: 600,
         };
@@ -760,8 +821,8 @@ mod tests {
     async fn invalidation_does_not_expire_a_newer_access_token() {
         let auth = AuthState::new("user".to_string(), "password".to_string());
         *auth.token.write().await = Some(TokenState {
-            access_token: "new-access".to_string(),
-            refresh_token: Some("refresh".to_string()),
+            access_token: "new-access".to_string().into(),
+            refresh_token: Some("refresh".to_string().into()),
             expires_at: Utc::now() + Duration::hours(1),
             token_lifetime_secs: 3600,
         });

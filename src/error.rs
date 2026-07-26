@@ -62,6 +62,8 @@ impl PolestarError {
                     || message.contains("unknown type")
                     || message.contains("fieldundefined")
                     || message.contains("field is not defined")
+                    || message.contains("subselectionnotallowed")
+                    || message.contains("subselectionrequired")
                     || message.contains("must not have a selection")
                     || message.contains("must have a selection of subfields")
             }
@@ -96,6 +98,14 @@ mod tests {
             "Field \"software\" must not have a selection of subfields".into(),
         )
         .is_graphql_schema_error());
+        assert!(
+            PolestarError::GraphQLError("SubSelectionNotAllowed for field".into(),)
+                .is_graphql_schema_error()
+        );
+        assert!(
+            PolestarError::GraphQLError("SubSelectionRequired for field".into(),)
+                .is_graphql_schema_error()
+        );
         assert!(
             PolestarError::GraphQLError("Cannot query argument \"locale\" on field\"".into(),)
                 .is_graphql_schema_error()

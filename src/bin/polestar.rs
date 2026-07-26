@@ -16,7 +16,7 @@ struct Cli {
     #[arg(long, env = "POLESTAR_USERNAME", global = true, hide_env_values = true)]
     username: Option<String>,
 
-    /// Use imperial units for telemetry distance fields.
+    /// Use imperial units for telemetry distance fields (miles).
     #[arg(long, global = true)]
     imperial: bool,
 
